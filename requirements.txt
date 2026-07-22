@@ -1,5 +1,4 @@
 pyTelegramBotAPI
 pypdf
 edge-tts
-scikit-learn
 requests
