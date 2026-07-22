@@ -56,7 +56,7 @@ Tu función es ayudar a resolver fallas técnicas, averías en formaciones y res
 MANUALES TÉCNICOS Y GUÍAS DE FALLAS DISPONIBLES:
 {context_text}
 
-Reglas strictly:
+Reglas estrictas:
 1. Sé conciso, claro y directo.
 2. Basate estrictamente en los manuales de consulta arriba provistos.
 3. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
@@ -65,7 +65,6 @@ Reglas strictly:
 
 def generate_voice_file(text, output_file="respuesta.mp3"):
     """Genera audio con voz masculina en español argentino (es-AR-TomasNeural)"""
-    # Limpiamos marcas de edición para que la lectura por voz sea fluida
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
     async def _generate():
         communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
@@ -98,7 +97,7 @@ def query_groq_llm(user_prompt):
 def send_welcome(message):
     bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. Podés escribirme o enviarme notas de voz. ¿En qué falla te ayudo hoy?", parse_mode="Markdown")
 
-# Manejador de Notas de Voz recibidas (Speech-to-Text con Groq Whisper)
+# Manejador de Notas de Voz recibidas (Speech-to-Text con Groq Whisper corregido)
 @bot.message_handler(content_types=['voice'])
 def handle_voice_message(message):
     try:
@@ -108,18 +107,23 @@ def handle_voice_message(message):
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # 2. Transcribir el audio usando Groq Whisper
+        # 2. Transcribir el audio enviando correctamente el formulario a Groq Whisper
         transcribe_url = "https://api.groq.com/openai/v1/audio/transcriptions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY.strip()}"}
+        
         files = {
-            'file': ('voice.oga', downloaded_file, 'audio/ogg'),
-            'model': (None, 'whisper-large-v3')
+            'file': ('voice.ogg', downloaded_file, 'audio/ogg')
+        }
+        data = {
+            'model': 'whisper-large-v3',
+            'language': 'es'
         }
         
-        trans_resp = requests.post(transcribe_url, headers=headers, files=files, timeout=30)
+        trans_resp = requests.post(transcribe_url, headers=headers, files=files, data=data, timeout=30)
         
         if trans_resp.status_code != 200:
-            bot.reply_to(message, "⚠️ No pude procesar tu nota de voz. Intenta nuevamente o escribe la consulta.")
+            err_detail = trans_resp.json().get('error', {}).get('message', 'Error procesando audio')
+            bot.reply_to(message, f"⚠️ Error transcripción ({trans_resp.status_code}): {err_detail}")
             return
             
         transcribed_text = trans_resp.json().get('text', '')
