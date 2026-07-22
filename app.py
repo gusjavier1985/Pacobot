@@ -3,19 +3,18 @@ import glob
 import threading
 import requests
 import asyncio
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from pypdf import PdfReader
 import edge_tts
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 # 1. Servidor Web auxiliar para mantener Render activo
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot Paco RAG OK")
+        self.wfile.write(b"Bot Paco OK")
 
 def run_health_check():
     port = int(os.environ.get("PORT", 8080))
@@ -30,22 +29,22 @@ GROQ_API_KEY = "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"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# 3. Indexación RAG: Carga y fragmentación de todos los PDFs sin límite de páginas
-print("Indexando manuales técnicos completos para RAG...")
+# 3. Indexación RAG Nativa (Cero consumo extra de RAM)
+print("Indexando manuales técnicos completos...")
 chunks = []
 pdf_files = sorted(glob.glob("*.pdf"))
 
 for pdf in pdf_files:
     try:
         reader = PdfReader(pdf)
-        for page_num, page in enumerate(reader.pages):
+        for page in reader.pages:
             text = page.extract_text()
             if text:
-                # Dividir la página en párrafos o bloques lógicos
+                # Dividir por párrafos o líneas dobles
                 paragraphs = text.split("\n\n")
                 for p in paragraphs:
                     clean_p = p.strip()
-                    if len(clean_p) > 30: # Ignorar líneas muy cortas o basura
+                    if len(clean_p) > 25:
                         chunks.append(clean_p)
     except Exception as e:
         print(f"Error procesando {pdf}: {e}")
@@ -53,30 +52,36 @@ for pdf in pdf_files:
 if not chunks:
     chunks = ["No hay manuales cargados en el sistema."]
 
-# Crear el vectorizador TF-IDF para búsqueda semántica local
-vectorizer = TfidfVectorizer(stop_words='spanish')
-tfidf_matrix = vectorizer.fit_transform(chunks)
-print(f"Indexación completa. Total de fragmentos indexados: {len(chunks)}")
+print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
 
 def search_relevant_chunks(query, top_k=3):
-    """Busca los fragmentos más relevantes en los manuales según la pregunta"""
-    try:
-        query_vec = vectorizer.transform([query])
-        similarities = cosine_similarity(query_vec, tfidf_matrix).flatten()
-        top_indices = similarities.argsort()[-top_k:][::-1]
-        
-        relevant_text = ""
-        for idx in top_indices:
-            if similarities[idx] > 0.03: # Umbral mínimo de relevancia
-                relevant_text += f"\n- {chunks[idx]}\n"
-                
-        return relevant_text if relevant_text else "No se encontró un procedimiento exacto en los fragmentos principales."
-    except Exception as e:
-        print(f"Error en búsqueda RAG: {e}")
-        return "Error al buscar en los manuales."
+    """Búsqueda semántica liviana en Python puro"""
+    # Tokenizar consulta y filtrar palabras comunes
+    stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
+    words = re.findall(r'\b\w+\b', query.lower())
+    keywords = [w for w in words if w not in stopwords and len(w) > 2]
+
+    if not keywords:
+        keywords = words
+
+    scored_chunks = []
+    for chunk in chunks:
+        chunk_lower = chunk.lower()
+        # Puntuación por coincidencia de palabras clave
+        score = sum(1 for kw in keywords if kw in chunk_lower)
+        if score > 0:
+            scored_chunks.append((score, chunk))
+
+    scored_chunks.sort(key=lambda x: x[0], reverse=True)
+    
+    relevant_text = ""
+    for score, chunk in scored_chunks[:top_k]:
+        relevant_text += f"\n- {chunk}\n"
+
+    return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
 def generate_voice_file(text, output_file="respuesta.mp3"):
-    """Genera audio con voz masculina en español argentino (es-AR-TomasNeural)"""
+    """Genera audio con voz masculina argentina"""
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
     async def _generate():
         communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
@@ -85,7 +90,6 @@ def generate_voice_file(text, output_file="respuesta.mp3"):
     asyncio.run(_generate())
 
 def query_groq_llm(user_prompt):
-    # Buscar dinámicamente los fragmentos del manual correspondientes a esta pregunta
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
     
     system_instruction = f"""
@@ -95,12 +99,12 @@ def query_groq_llm(user_prompt):
     FRAGMENTOS DE MANUALES RECUPERADOS PARA ESTA CONSULTA:
     {relevant_context}
 
-    Reglas estrictas:
+    Reglas strictly:
     1. Sé conciso, claro y directo. Ve al grano sin introducciones ni formalismos innecesarios.
     2. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual..." o "En el anexo LXVII...".
-    3. Basate estrictamente en los fragmentos de manuales provistos arriba.
+    3. Basate estrictamente en los fragmentos provistos arriba.
     4. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
-    5. Si la información no está en los fragmentos provistos, indicalo de forma directa o aconseja consultar con la central de tráfico.
+    5. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
     """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -125,7 +129,7 @@ def query_groq_llm(user_prompt):
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico con RAG activo. Podés consultarme sobre cualquier falla y buscaré en todos los manuales completos. ¿En qué te ayudo?", parse_mode="Markdown")
+    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué falla te ayudo?", parse_mode="Markdown")
 
 # Manejador de Notas de Voz
 @bot.message_handler(content_types=['voice'])
@@ -206,5 +210,5 @@ def handle_text_message(message):
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
 if __name__ == "__main__":
-    print("🤖 Paco con RAG listo...")
+    print("🤖 Paco listo y súper liviano...")
     bot.polling(non_stop=True)
