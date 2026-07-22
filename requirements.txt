@@ -2,3 +2,6 @@ pyTelegramBotAPI
 pypdf
 edge-tts
 requests
+flask
+flask-cors
+
