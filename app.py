@@ -26,7 +26,7 @@ GROQ_API_KEY = "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"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# 3. Carga PROFUNDA de manuales clave y de fallas
+# 3. Carga optimizada para no exceder el tope de 6.000 tokens por mensaje
 print("Cargando manuales técnicos principales...")
 context_text = ""
 pdf_files = sorted(glob.glob("*.pdf"))
@@ -34,17 +34,22 @@ pdf_files = sorted(glob.glob("*.pdf"))
 for pdf in pdf_files:
     try:
         reader = PdfReader(pdf)
-        context_text += f"\n\n=== DOCUMENTO COMPLETO: {pdf} ===\n"
-        # Leemos hasta 30 páginas por manual (cubre la totalidad de guías de fallas)
-        for page in reader.pages[:30]:
+        context_text += f"\n\n=== DOCUMENTO: {pdf} ===\n"
+        pdf_text = ""
+        # Leemos hasta 10 páginas clave por manual
+        for page in reader.pages[:10]:
             text = page.extract_text()
             if text:
-                context_text += text + "\n"
+                pdf_text += text + "\n"
+        
+        # Asignamos cupo por PDF para que entren todos
+        context_text += pdf_text[:3500] + "\n"
     except Exception as e:
         print(f"Error procesando {pdf}: {e}")
 
-# Límite ampliado a 35.000 caracteres (~8.000 tokens) perfecto para Llama-3.1-8b-instant
-context_text = context_text[:35000]
+# Mantenemos el total general en 18.000 caracteres (~4.500 tokens)
+# para estar bien por debajo del tope de 6.000 tokens de Groq
+context_text = context_text[:18000]
 
 # 4. Instrucción del Asistente
 SYSTEM_INSTRUCTION = f"""
@@ -56,7 +61,7 @@ MANUALES TÉCNICOS Y GUÍAS DE FALLAS DISPONIBLES:
 
 Reglas estrictas:
 1. Sé conciso, claro y directo.
-2. Basate estrictamente en los manuales de consulta arriba provistos.
+2. Basate strictly en los manuales de consulta arriba provistos.
 3. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
 4. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
 """
