@@ -48,7 +48,7 @@ for pdf in pdf_files:
 
 context_text = context_text[:18000]
 
-# 4. Instrucción del Asistente
+# 4. Instrucción del Asistente (Sin menciones técnicas/formalismos de origen)
 SYSTEM_INSTRUCTION = f"""
 Eres Paco, un asistente técnico especializado para el personal de tráfico del Subte (motoristas, guardias, maniobristas).
 Tu función es ayudar a resolver fallas técnicas, averías en formaciones y responder procedimientos de actuación.
@@ -57,10 +57,11 @@ MANUALES TÉCNICOS Y GUÍAS DE FALLAS DISPONIBLES:
 {context_text}
 
 Reglas estrictas:
-1. Sé conciso, claro y directo.
-2. Basate estrictamente en los manuales de consulta arriba provistos.
-3. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
-4. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
+1. Sé conciso, claro y directo. Ve al grano sin introducciones ni formalismos innecesarios.
+2. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual..." o "En el anexo LXVII...".
+3. Basate en los manuales de consulta arriba provistos pero presenta la respuesta de forma directa e inmediata.
+4. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
+5. Si hay duda o riesgo operativo, aconseja al final consultar con la central de tráfico.
 """
 
 def generate_voice_file(text, output_file="respuesta.mp3"):
@@ -97,7 +98,7 @@ def query_groq_llm(user_prompt):
 def send_welcome(message):
     bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. Podés escribirme o enviarme notas de voz. ¿En qué falla te ayudo hoy?", parse_mode="Markdown")
 
-# Manejador de Notas de Voz recibidas (Speech-to-Text con Groq Whisper corregido)
+# Manejador de Notas de Voz recibidas (Speech-to-Text con Groq Whisper)
 @bot.message_handler(content_types=['voice'])
 def handle_voice_message(message):
     try:
@@ -107,7 +108,7 @@ def handle_voice_message(message):
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # 2. Transcribir el audio enviando correctamente el formulario a Groq Whisper
+        # 2. Transcribir el audio enviando el formulario a Groq Whisper
         transcribe_url = "https://api.groq.com/openai/v1/audio/transcriptions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY.strip()}"}
         
@@ -183,5 +184,5 @@ def handle_text_message(message):
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
 if __name__ == "__main__":
-    print("🤖 Paco listo con voz argentina (Tomas)...")
+    print("🤖 Paco listo con respuesta directa...")
     bot.polling(non_stop=True)
