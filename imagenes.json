@@ -1,14 +1,20 @@
-[
   {
-    "archivo": "escalera_mitsubishi.jpg",
-    "titulo": "Escalera de seguridad Mitsubishi",
-    "descripcion": "Ubicación de la escalera de emergencia en coches Mitsubishi.",
-    "palabras_clave": ["escalera", "seguridad", "mitsubishi", "emergencia", "escape", "frente"]
-  },
-  {
-    "archivo": "termica_caf6000.jpg",
-    "titulo": "Térmica Mando Puertas CAF 6000",
-    "descripcion": "Ubicación de la térmica 55-F1 en cabina de guarda.",
-    "palabras_clave": ["termica", "55-f1", "caf", "6000", "puertas", "cabina"]
+    "archivo": "grifos_individuales_puertas.jpg",
+    "titulo": "Grifos individuales de puertas",
+    "descripcion": "Ubicado debajo de los asientos cerca de las puertas laterales. Al accionar el grifo rojo a través de la ventanita, se produce la pérdida de aire para el accionamiento manual de las puertas y se evita que la ventanita se cierre.",
+    "palabras_clave": [
+      "grifo",
+      "grifos",
+      "puerta",
+      "puertas",
+      "grifo rojo",
+      "ventanita",
+      "desbloqueo puertas",
+      "apertura manual",
+      "accionamiento manual",
+      "aislar puerta",
+      "motor de puertas",
+      "perdida de aire",
+      "asientos"
+    ]
   }
-]
