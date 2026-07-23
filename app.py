@@ -172,26 +172,30 @@ def generate_voice_file(text, output_file):
         print(f"Error generando audio: {e}")
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
-    relevant_context = search_relevant_chunks(user_prompt, top_k=3)
-    
     image_context = ""
+    relevant_context = ""
+
+    # Si hay coincidencia de imagen EXACTA, usamos ÚNICAMENTE la ficha del JSON y ANULAMOS la búsqueda en PDFs
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
-        image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n- Componente: {img_info.get('titulo')}\n- Explicación completa exactísima: {img_info.get('descripcion')}\n"
-    elif search_result and search_result.get("type") == "AMBIGUOUS":
-        models_str = " o ".join(search_result["models"])
-        image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
+        image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n- Texto exacto a responder: {img_info.get('descripcion')}\n"
+        relevant_context = "" # Se limpia para evitar interferencias de PDFs o inventos
+    else:
+        relevant_context = search_relevant_chunks(user_prompt, top_k=3)
+        if search_result and search_result.get("type") == "AMBIGUOUS":
+            models_str = " o ".join(search_result["models"])
+            image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
     Hablas de forma directa, profesional, fluida y al grano.
 
     REGLAS ESTRUCTURALES OBLIGATORIAS Y ESTRICTAS:
-    1. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas", "buenos días"): Responde ÚNICAMENTE de forma ultra corta: "¡Hola! ¿En qué te puedo ayudar?". Prohibido agregar frases sobre el Subte, explicaciones o repreguntas largas.
-    2. SI EXISTE UNA FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Responde ÚNICAMENTE con el texto contenido en 'Explicación completa exactísima'. Queda TOTALMENTE PROHIBIDO resumir, acortar, reescribir, parafrasear, agregar listas con viñetas, incluir conclusiones o mencionar números de página o manuales. Entrega la descripción PALABRA POR PALABRA.
-    3. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica" ni "Es importante tener en cuenta que se trata del tren X".
-    4. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos ni discursos introductorios.
-    5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla. Si el usuario te hace una repregunta, responde teniendo en cuenta el contexto de los mensajes anteriores.
+    1. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas", "buenos días"): Responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
+    2. SI EXISTE FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Tu respuesta DEBE SER EXACTAMENTE Y PALABRA POR PALABRA el texto que aparece en 'Texto exacto a responder'. Queda TOTALMENTE PROHIBIDO modificarlo, resumirlo, reescribirlo, agregar datos inventados (como decir que está en el techo o en el lado opuesto) o interpretarlo. REPRODUCE EL TEXTO COMPLETO TAL CUAL ESTÁ REDACTADO EN LA FICHA TÉCNICA.
+    3. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica".
+    4. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos.
+    5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla.
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
     {relevant_context}
