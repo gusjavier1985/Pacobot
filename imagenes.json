@@ -5,21 +5,18 @@
     "modelo": "Mitsubishi",
     "descripcion": "En la formación Mitsubishi, se encuentra ubicado debajo de los asientos cerca de las puertas laterales. Al accionar el grifo rojo a través de la ventanita, se produce la pérdida de aire para el accionamiento manual de las puertas y se evita que la ventanita se cierre.",
     "palabras_clave": [
-      "grifo",
-      "grifos",
-      "puerta",
-      "puertas",
-      "grifo rojo",
-      "ventanita",
-      "desbloqueo puertas",
-      "apertura manual",
-      "accionamiento manual",
-      "aislar puerta",
-      "motor de puertas",
-      "perdida de aire",
-      "asientos",
+      "grifo individual",
+      "grifos individuales",
+      "grifo individual de puerta",
+      "grifos individuales de puerta",
+      "grifo individual de puertas",
+      "grifos individuales de puertas",
+      "grifo rojo individual",
+      "grifos rojos individuales",
       "mitsubishi",
-      "mitsu"
+      "mitsu",
+      "japonés",
+      "japones"
     ]
   },
   {
@@ -30,17 +27,14 @@
     "palabras_clave": [
       "extinguidor",
       "extinguidores",
+      "extintor",
+      "extintores",
       "matafuego",
       "matafuegos",
-      "incendio",
-      "incendios",
-      "fuego",
-      "seguridad",
-      "elementos de seguridad",
-      "cabina",
-      "sin cabina",
       "mitsubishi",
-      "mitsu"
+      "mitsu",
+      "japonés",
+      "japones"
     ]
   },
   {
@@ -51,17 +45,16 @@
     "palabras_clave": [
       "escalera",
       "escaleras",
-      "evacuacion",
-      "evacuación",
-      "emergencia",
+      "escalera de evacuacion",
+      "escalera de evacuación",
+      "escaleras de evacuacion",
+      "escaleras de evacuación",
       "escalera de emergencia",
-      "debajo del asiento",
-      "asiento",
-      "autoadhesivo",
-      "bajar gente",
-      "seguridad",
+      "escaleras de emergencia",
       "mitsubishi",
-      "mitsu"
+      "mitsu",
+      "japonés",
+      "japones"
     ]
   }
 ]
