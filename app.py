@@ -91,10 +91,10 @@ def search_relevant_chunks(query, top_k=3):
 
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
-def search_relevant_image(query):
+def search_relevant_image(query, history=None):
     """
-    Analiza la consulta y busca coincidencias por modelo de tren (incluyendo apodos) y tema.
-    Devuelve un diccionario con el estado: EXACT, AMBIGUOUS o NONE.
+    Analiza la consulta y busca coincidencias por modelo de tren y tema,
+    utilizando el historial reciente si en la pregunta actual no se especifica el modelo.
     """
     json_path = "imagenes.json"
     if not os.path.exists(json_path):
@@ -109,22 +109,29 @@ def search_relevant_image(query):
 
     query_lower = query.lower()
 
-    # Detección de modelo mencionado por el usuario (incluyendo jerga/apodos)
     model_keywords = {
         "Mitsubishi": ["mitsubishi", "mitsu", "japonés", "japones"],
         "CAF 6000": ["caf", "caf6000", "caf 6000", "6000", "seis mil", "6 mil"]
     }
     
     requested_model = None
+    # 1. Buscar modelo en la pregunta actual
     for model_name, kw_list in model_keywords.items():
         if any(kw in query_lower for kw in kw_list):
             requested_model = model_name
             break
 
+    # 2. Si no especifica modelo en la pregunta actual, buscar en el historial reciente
+    if not requested_model and history and isinstance(history, list):
+        recent_text = " ".join([m.get("content", "") for m in history[-4:]]).lower()
+        for model_name, kw_list in model_keywords.items():
+            if any(kw in recent_text for kw in kw_list):
+                requested_model = model_name
+                break
+
     stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta", "encuentra", "ubicada", "ubicado", "estan"}
     words = set(re.findall(r'\b\w+\b', query_lower)) - stopwords
     
-    # Filtrar palabras del nombre del modelo para la búsqueda exclusiva por tema
     all_model_kws = [kw for kw_list in model_keywords.values() for kw in kw_list]
     topic_words = set(w for w in words if w not in all_model_kws)
 
@@ -144,7 +151,6 @@ def search_relevant_image(query):
 
     available_models = list(set(item.get("modelo", "General") for item in best_matches))
 
-    # Si el usuario especificó modelo
     if requested_model:
         model_match = next((item for item in best_matches if item.get("modelo", "").lower() == requested_model.lower()), None)
         if not model_match:
@@ -153,11 +159,9 @@ def search_relevant_image(query):
         if model_match:
             return {"type": "EXACT", "image": model_match, "models": [requested_model]}
 
-    # Si NO especificó modelo y hay MÚLTIPLES modelos para ese elemento
     if len(available_models) > 1 and not requested_model:
         return {"type": "AMBIGUOUS", "image": None, "models": available_models}
 
-    # Si solo hay 1 modelo disponible para ese elemento
     return {"type": "EXACT", "image": best_matches[0], "models": available_models}
 
 def generate_voice_file(text, output_file):
@@ -174,32 +178,44 @@ def generate_voice_file(text, output_file):
     except Exception as e:
         print(f"Error generando audio: {e}")
 
-def query_groq_llm(user_prompt, search_result=None):
+def query_groq_llm(user_prompt, search_result=None, history=None):
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
     
     image_context = ""
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
-        image_context = f"\nFICHA TÉCNICA OFICIAL (Modelo de tren: {img_info.get('modelo', 'General')}):\n- Componente: {img_info.get('titulo')}\n- Explicación completa: {img_info.get('descripcion')}\n"
+        image_context = f"\nFICHA TÉCNICA OFICIAL:\n- Componente: {img_info.get('titulo')}\n- Explicación completa: {img_info.get('descripcion')}\n"
     elif search_result and search_result.get("type") == "AMBIGUOUS":
         models_str = " o ".join(search_result["models"])
-        image_context = f"\nNOTA DE DESAMBIGUACIÓN IMPORTANTE: La consulta aplica a varios modelos de tren ({models_str}), pero el usuario NO especificó a cuál se refiere. DEBES responder amablemente preguntándole a qué modelo de tren se refiere ({models_str}) para darle la ubicación exacta y su foto.\n"
+        image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
 
     system_instruction = f"""
-    Eres Paco, un asistente técnico especializado para el personal de tráfico del Subte (motoristas, guardias, maniobristas).
-    Tu función es ayudar a resolver fallas técnicas, averías en formaciones y responder procedimientos de actuación.
+    Eres Paco, un asistente técnico para el personal de tráfico del Subte.
+    Hablas como un compañero técnico experimentado: directo, claro, profesional y al grano.
 
-    CONTEXTO DE MANUALES Y FICHA TÉCNICA:
+    REGLAS ESTRUCTURALES Y DE ESTILO (ESTRICTAS):
+    1. PROHIBIDO USAR MULETILLAS O FRASES TIPO: "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica".
+    2. RESPUESTA DIRECTA: Entrega la respuesta de inmediato sin preámbulos ni discursos introductorios.
+    3. SI HAY FICHA TÉCNICA: Trasmite la 'Explicación completa' tal cual está definida, de manera fluida y limpia.
+    4. NO REPETIR EL MODELO DE TREN EN EL CIERRE ni hacer avisos del tipo "Es importante tener en cuenta que se trata del tren X". Si ya se sabe qué tren es o venían hablando de él, responde directamente.
+    5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria de la charla. Si el usuario te hace una repregunta, responde teniendo en cuenta los mensajes anteriores sin reiniciar la conversación.
+
+    INFORMACIÓN TÉCNICA Y CONTEXTO:
     {relevant_context}
     {image_context}
-
-    Reglas estrictas de respuesta:
-    1. SI HAY NOTA DE DESAMBIGUACIÓN: No des ubicaciones hipotéticas ni genéricas. Pregúntale cordialmente al usuario a qué modelo de tren se refiere entre las opciones disponibles.
-    2. SI HAY FICHA TÉCNICA (EXACTA): Explica de forma COMPLETA y DETALLADA lo indicado en 'Explicación completa', indicando claramente a qué modelo de tren corresponde. NO omitas ningún detalle técnico.
-    3. PROHIBIDO NARRAR MULETILLAS O FRASES TIPO: "Según la información disponible", "De acuerdo al manual", "Según los datos".
-    4. Sé claro, técnico, cordial y directo al grano.
-    5. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
     """
+
+    messages = [{"role": "system", "content": system_instruction}]
+
+    # Agregar historial de chat reciente para mantener la memoria viva
+    if history and isinstance(history, list):
+        clean_history = []
+        for msg in history[-6:]: # Mantiene los últimos 6 mensajes
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                clean_history.append({"role": msg["role"], "content": msg["content"]})
+        messages.extend(clean_history)
+
+    messages.append({"role": "user", "content": user_prompt})
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -208,10 +224,7 @@ def query_groq_llm(user_prompt, search_result=None):
     }
     payload = {
         "model": "llama-3.1-8b-instant",
-        "messages": [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": user_prompt}
-        ],
+        "messages": messages,
         "temperature": 0.1
     }
     response = requests.post(url, json=payload, headers=headers, timeout=30)
@@ -221,17 +234,18 @@ def query_groq_llm(user_prompt, search_result=None):
         err = response.json().get('error', {}).get('message', 'Error en la consulta')
         return None, f"⚠️ Error {response.status_code}: {err}"
 
-# --- ENDPOINT PARA BASE44 ---
+# --- ENDPOINT PARA BASE44 (CON MEMORIA / HISTORIAL) ---
 @app.route('/preguntar', methods=['POST'])
 def api_preguntar():
     data = request.get_json(silent=True) or {}
     pregunta = data.get('pregunta', '')
+    historial = data.get('historial', [])  # Acepta el historial desde el cliente Web/Base44
     
     if not pregunta:
         return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
 
-    search_result = search_relevant_image(pregunta)
-    respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result)
+    search_result = search_relevant_image(pregunta, history=historial)
+    respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
     if error:
         return jsonify({'error': error}), 500
 
@@ -257,7 +271,7 @@ def api_preguntar():
 # --- MANEJADORES TELEGRAM ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué falla te ayudo?", parse_mode="Markdown")
+    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te ayudo?", parse_mode="Markdown")
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice_message(message):
