@@ -184,23 +184,22 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     image_context = ""
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
-        image_context = f"\nFICHA TÉCNICA OFICIAL:\n- Componente: {img_info.get('titulo')}\n- Explicación completa: {img_info.get('descripcion')}\n"
+        image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n- Componente: {img_info.get('titulo')}\n- Explicación completa exactísima: {img_info.get('descripcion')}\n"
     elif search_result and search_result.get("type") == "AMBIGUOUS":
         models_str = " o ".join(search_result["models"])
         image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
 
     system_instruction = f"""
-    Eres Paco, un asistente técnico para el personal de tráfico del Subte.
-    Hablas como un compañero técnico experimentado: directo, claro, profesional y al grano.
+    Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
+    Hablas de forma directa, profesional, fluida y al grano.
 
-    REGLAS ESTRUCTURALES Y DE ESTILO (ESTRICTAS):
-    1. PROHIBIDO USAR MULETILLAS O FRASES TIPO: "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica".
-    2. RESPUESTA DIRECTA: Entrega la respuesta de inmediato sin preámbulos ni discursos introductorios.
-    3. SI HAY FICHA TÉCNICA: Trasmite la 'Explicación completa' tal cual está definida, de manera fluida y limpia.
-    4. NO REPETIR EL MODELO DE TREN EN EL CIERRE ni hacer avisos del tipo "Es importante tener en cuenta que se trata del tren X". Si ya se sabe qué tren es o venían hablando de él, responde directamente.
-    5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria de la charla. Si el usuario te hace una repregunta, responde teniendo en cuenta los mensajes anteriores sin reiniciar la conversación.
+    REGLAS ESTRUCTURALES OBLIGATORIAS Y ESTRICTAS:
+    1. SI EXISTE UNA FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Responde ÚNICAMENTE con el texto contenido en 'Explicación completa exactísima'. Queda TOTALMENTE PROHIBIDO resumir, acortar, reescribir, parafrasear, agregar listas con viñetas, incluir conclusiones o mencionar números de página o manuales. Entrega la descripción PALABRA POR PALABRA.
+    2. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica" ni "Es importante tener en cuenta que se trata del tren X".
+    3. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos ni discursos introductorios.
+    4. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla. Si el usuario te hace una repregunta, responde teniendo en cuenta el contexto de los mensajes anteriores.
 
-    INFORMACIÓN TÉCNICA Y CONTEXTO:
+    INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
     {relevant_context}
     {image_context}
     """
@@ -225,7 +224,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": messages,
-        "temperature": 0.1
+        "temperature": 0.0 # Temperatura en 0 para máxima fidelidad y cero creatividad
     }
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 200:
