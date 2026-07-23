@@ -34,7 +34,6 @@ def get_audio(filename):
 
 @app.route('/images/<filename>', methods=['GET'])
 def get_image(filename):
-    """Entrega imágenes con cabeceras CORS explícitas"""
     response = send_from_directory(IMAGE_DIR, filename)
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
@@ -93,32 +92,73 @@ def search_relevant_chunks(query, top_k=3):
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
 def search_relevant_image(query):
-    """Busca si hay una imagen que coincida con las palabras clave y devuelve su objeto completo"""
+    """
+    Analiza la consulta y busca coincidencias por modelo de tren (incluyendo apodos) y tema.
+    Devuelve un diccionario con el estado: EXACT, AMBIGUOUS o NONE.
+    """
     json_path = "imagenes.json"
     if not os.path.exists(json_path):
-        return None
+        return {"type": "NONE", "image": None, "models": []}
     
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             images_db = json.load(f)
     except Exception as e:
         print(f"Error leyendo imagenes.json: {e}")
-        return None
+        return {"type": "NONE", "image": None, "models": []}
 
-    stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta", "se", "encuentra"}
-    words = set(re.findall(r'\b\w+\b', query.lower())) - stopwords
+    query_lower = query.lower()
 
-    best_match = None
-    best_score = 0
+    # Detección de modelo mencionado por el usuario (incluyendo jerga/apodos)
+    model_keywords = {
+        "Mitsubishi": ["mitsubishi", "mitsu", "japonés", "japones"],
+        "CAF 6000": ["caf", "caf6000", "caf 6000", "6000", "seis mil", "6 mil"]
+    }
+    
+    requested_model = None
+    for model_name, kw_list in model_keywords.items():
+        if any(kw in query_lower for kw in kw_list):
+            requested_model = model_name
+            break
 
+    stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta", "encuentra", "ubicada", "ubicado", "estan"}
+    words = set(re.findall(r'\b\w+\b', query_lower)) - stopwords
+    
+    # Filtrar palabras del nombre del modelo para la búsqueda exclusiva por tema
+    all_model_kws = [kw for kw_list in model_keywords.values() for kw in kw_list]
+    topic_words = set(w for w in words if w not in all_model_kws)
+
+    matches = []
     for item in images_db:
         keywords = set([kw.lower() for kw in item.get("palabras_clave", [])])
-        score = len(words.intersection(keywords))
-        if score > best_score and score >= 1:
-            best_score = score
-            best_match = item
+        score = len(topic_words.intersection(keywords))
+        if score >= 1:
+            matches.append((score, item))
 
-    return best_match
+    if not matches:
+        return {"type": "NONE", "image": None, "models": []}
+
+    matches.sort(key=lambda x: x[0], reverse=True)
+    max_score = matches[0][0]
+    best_matches = [m[1] for m in matches if m[0] == max_score]
+
+    available_models = list(set(item.get("modelo", "General") for item in best_matches))
+
+    # Si el usuario especificó modelo
+    if requested_model:
+        model_match = next((item for item in best_matches if item.get("modelo", "").lower() == requested_model.lower()), None)
+        if not model_match:
+            model_match = next((m[1] for m in matches if m[1].get("modelo", "").lower() == requested_model.lower()), None)
+        
+        if model_match:
+            return {"type": "EXACT", "image": model_match, "models": [requested_model]}
+
+    # Si NO especificó modelo y hay MÚLTIPLES modelos para ese elemento
+    if len(available_models) > 1 and not requested_model:
+        return {"type": "AMBIGUOUS", "image": None, "models": available_models}
+
+    # Si solo hay 1 modelo disponible para ese elemento
+    return {"type": "EXACT", "image": best_matches[0], "models": available_models}
 
 def generate_voice_file(text, output_file):
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
@@ -134,12 +174,16 @@ def generate_voice_file(text, output_file):
     except Exception as e:
         print(f"Error generando audio: {e}")
 
-def query_groq_llm(user_prompt, image_info=None):
+def query_groq_llm(user_prompt, search_result=None):
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
     
     image_context = ""
-    if image_info:
-        image_context = f"\nFICHA TÉCNICA OFICIAL DE LA IMAGEN ENCONTRADA:\n- Componente: {image_info.get('titulo')}\n- Explicación completa: {image_info.get('descripcion')}\n"
+    if search_result and search_result.get("type") == "EXACT":
+        img_info = search_result["image"]
+        image_context = f"\nFICHA TÉCNICA OFICIAL (Modelo de tren: {img_info.get('modelo', 'General')}):\n- Componente: {img_info.get('titulo')}\n- Explicación completa: {img_info.get('descripcion')}\n"
+    elif search_result and search_result.get("type") == "AMBIGUOUS":
+        models_str = " o ".join(search_result["models"])
+        image_context = f"\nNOTA DE DESAMBIGUACIÓN IMPORTANTE: La consulta aplica a varios modelos de tren ({models_str}), pero el usuario NO especificó a cuál se refiere. DEBES responder amablemente preguntándole a qué modelo de tren se refiere ({models_str}) para darle la ubicación exacta y su foto.\n"
 
     system_instruction = f"""
     Eres Paco, un asistente técnico especializado para el personal de tráfico del Subte (motoristas, guardias, maniobristas).
@@ -150,10 +194,10 @@ def query_groq_llm(user_prompt, image_info=None):
     {image_context}
 
     Reglas estrictas de respuesta:
-    1. SI HAY FICHA TÉCNICA DE IMAGEN DISPONIBLE (arriba): Explica de forma COMPLETA y DETALLADA todo lo indicado en 'Explicación completa' (ubicación, colores, ventanitas, pérdida de aire, funcionamiento). NO omitas ningún detalle técnico.
-    2. PROHIBIDO NARRAR MULETILLAS O FRASES TIPO: "Según la información disponible", "De acuerdo al manual", "Según los datos". Empieza a responder directamente de forma natural y profesional.
-    3. Sé claro, técnico, cordial y directo al grano.
-    4. Para resolución de fallas o procedimientos, usa listas numeradas precisas.
+    1. SI HAY NOTA DE DESAMBIGUACIÓN: No des ubicaciones hipotéticas ni genéricas. Pregúntale cordialmente al usuario a qué modelo de tren se refiere entre las opciones disponibles.
+    2. SI HAY FICHA TÉCNICA (EXACTA): Explica de forma COMPLETA y DETALLADA lo indicado en 'Explicación completa', indicando claramente a qué modelo de tren corresponde. NO omitas ningún detalle técnico.
+    3. PROHIBIDO NARRAR MULETILLAS O FRASES TIPO: "Según la información disponible", "De acuerdo al manual", "Según los datos".
+    4. Sé claro, técnico, cordial y directo al grano.
     5. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
     """
 
@@ -186,15 +230,11 @@ def api_preguntar():
     if not pregunta:
         return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
 
-    # Buscar si hay una imagen que coincida
-    image_info = search_relevant_image(pregunta)
-
-    # Consultar Groq pasándole la ficha de la imagen
-    respuesta_texto, error = query_groq_llm(pregunta, image_info=image_info)
+    search_result = search_relevant_image(pregunta)
+    respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result)
     if error:
         return jsonify({'error': error}), 500
 
-    # Generar Audio
     filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
     filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
     generate_voice_file(respuesta_texto, filepath_audio)
@@ -204,7 +244,9 @@ def api_preguntar():
         host_url = host_url.replace("http://", "https://", 1)
 
     audio_url = f"{host_url}/audio/{filename_audio}"
-    imagen_url = f"{host_url}/images/{image_info.get('archivo')}" if image_info else None
+    imagen_url = None
+    if search_result.get("type") == "EXACT" and search_result.get("image"):
+        imagen_url = f"{host_url}/images/{search_result['image'].get('archivo')}"
 
     return jsonify({
         'respuesta_texto': respuesta_texto,
@@ -239,20 +281,20 @@ def handle_voice_message(message):
             bot.reply_to(message, "⚠️ No logré escuchar con claridad el audio.")
             return
 
-        image_info = search_relevant_image(transcribed_text)
-        respuesta_texto, error = query_groq_llm(transcribed_text, image_info=image_info)
+        search_result = search_relevant_image(transcribed_text)
+        respuesta_texto, error = query_groq_llm(transcribed_text, search_result=search_result)
         if error:
             bot.reply_to(message, error)
             return
 
         bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
 
-        # Enviar foto en Telegram si existe
-        if image_info:
-            img_path = os.path.join(IMAGE_DIR, image_info.get('archivo'))
+        if search_result.get("type") == "EXACT" and search_result.get("image"):
+            img_info = search_result["image"]
+            img_path = os.path.join(IMAGE_DIR, img_info.get('archivo'))
             if os.path.exists(img_path):
                 with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption=f"📸 {image_info.get('titulo', 'Imagen de referencia')}")
+                    bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', 'Imagen de referencia')}")
 
         bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
@@ -273,20 +315,20 @@ def handle_text_message(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
         
-        image_info = search_relevant_image(message.text)
-        respuesta_texto, error = query_groq_llm(message.text, image_info=image_info)
+        search_result = search_relevant_image(message.text)
+        respuesta_texto, error = query_groq_llm(message.text, search_result=search_result)
         if error:
             bot.reply_to(message, error)
             return
 
         bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
 
-        # Enviar foto en Telegram si existe
-        if image_info:
-            img_path = os.path.join(IMAGE_DIR, image_info.get('archivo'))
+        if search_result.get("type") == "EXACT" and search_result.get("image"):
+            img_info = search_result["image"]
+            img_path = os.path.join(IMAGE_DIR, img_info.get('archivo'))
             if os.path.exists(img_path):
                 with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption=f"📸 {image_info.get('titulo', 'Imagen de referencia')}")
+                    bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', 'Imagen de referencia')}")
 
         bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
