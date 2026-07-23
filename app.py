@@ -5,19 +5,22 @@ import requests
 import asyncio
 import re
 import uuid
+import json
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import telebot
 from pypdf import PdfReader
 import edge_tts
 
-# Directorio para almacenar los audios servidos por la API
+# Directorios para archivos estáticos (Audios e Imágenes)
 AUDIO_DIR = "static_audio"
+IMAGE_DIR = "static_images"
 os.makedirs(AUDIO_DIR, exist_ok=True)
+os.makedirs(IMAGE_DIR, exist_ok=True)
 
 # Servidor Flask para la API Web
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Habilita CORS global
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/', methods=['GET'])
 def health_check():
@@ -25,8 +28,14 @@ def health_check():
 
 @app.route('/audio/<filename>', methods=['GET'])
 def get_audio(filename):
-    """Entrega el archivo de audio con cabeceras CORS explícitas"""
     response = send_from_directory(AUDIO_DIR, filename)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
+@app.route('/images/<filename>', methods=['GET'])
+def get_image(filename):
+    """Entrega imágenes con cabeceras CORS explícitas"""
+    response = send_from_directory(IMAGE_DIR, filename)
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
@@ -36,7 +45,7 @@ GROQ_API_KEY = "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"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Indexación RAG Nativa
+# Indexación RAG Nativa de PDFs
 print("Indexando manuales técnicos completos...")
 chunks = []
 pdf_files = sorted(glob.glob("*.pdf"))
@@ -83,8 +92,37 @@ def search_relevant_chunks(query, top_k=3):
 
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
+def search_relevant_image(query):
+    """Busca si hay una imagen que coincida con las palabras clave de la consulta"""
+    json_path = "imagenes.json"
+    if not os.path.exists(json_path):
+        return None
+    
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            images_db = json.load(f)
+    except Exception as e:
+        print(f"Error leyendo imagenes.json: {e}")
+        return None
+
+    stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta"}
+    words = set(re.findall(r'\b\w+\b', query.lower())) - stopwords
+
+    best_match = None
+    best_score = 0
+
+    for item in images_db:
+        keywords = set([kw.lower() for kw in item.get("palabras_clave", [])])
+        score = len(words.intersection(keywords))
+        if score > best_score and score >= 1:
+            best_score = score
+            best_match = item
+
+    if best_match:
+        return best_match.get("archivo")
+    return None
+
 def generate_voice_file(text, output_file):
-    """Genera audio con voz masculina argentina usando event loop independiente"""
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
     async def _generate():
         communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
@@ -108,7 +146,7 @@ def query_groq_llm(user_prompt):
     FRAGMENTOS DE MANUALES RECUPERADOS PARA ESTA CONSULTA:
     {relevant_context}
 
-    Reglas estrictas:
+    Reglas strictly:
     1. Sé conciso, claro, cordial y directo. Ve al grano sin introducciones ni formalismos innecesarios.
     2. Si el usuario te saluda, agradece o conversa cordialmente (ej: "gracias", "de nada", "hola"), responde de manera breve, atenta y profesional.
     3. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual..." o "En el anexo LXVII...".
@@ -149,20 +187,25 @@ def api_preguntar():
     if error:
         return jsonify({'error': error}), 500
 
-    filename = f"audio_{uuid.uuid4().hex[:8]}.mp3"
-    filepath = os.path.join(AUDIO_DIR, filename)
-    generate_voice_file(respuesta_texto, filepath)
+    # Generar Audio
+    filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
+    filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
+    generate_voice_file(respuesta_texto, filepath_audio)
 
-    # Forzar HTTPS para evitar bloqueo de contenido mixto en navegadores
+    # Buscar Imagen Relacionada
+    image_file = search_relevant_image(pregunta)
+    
     host_url = request.host_url.rstrip('/')
     if host_url.startswith("http://"):
         host_url = host_url.replace("http://", "https://", 1)
 
-    audio_url = f"{host_url}/audio/{filename}"
+    audio_url = f"{host_url}/audio/{filename_audio}"
+    imagen_url = f"{host_url}/images/{image_file}" if image_file else None
 
     return jsonify({
         'respuesta_texto': respuesta_texto,
-        'audio_url': audio_url
+        'audio_url': audio_url,
+        'imagen_url': imagen_url
     })
 
 # --- MANEJADORES TELEGRAM ---
@@ -199,6 +242,14 @@ def handle_voice_message(message):
 
         bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
 
+        # Enviar foto en Telegram si existe
+        image_file = search_relevant_image(transcribed_text)
+        if image_file:
+            img_path = os.path.join(IMAGE_DIR, image_file)
+            if os.path.exists(img_path):
+                with open(img_path, "rb") as photo:
+                    bot.send_photo(message.chat.id, photo, caption="📸 Imagen de referencia")
+
         bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
@@ -223,6 +274,14 @@ def handle_text_message(message):
             return
 
         bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
+
+        # Enviar foto en Telegram si existe
+        image_file = search_relevant_image(message.text)
+        if image_file:
+            img_path = os.path.join(IMAGE_DIR, image_file)
+            if os.path.exists(img_path):
+                with open(img_path, "rb") as photo:
+                    bot.send_photo(message.chat.id, photo, caption="📸 Imagen de referencia")
 
         bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
