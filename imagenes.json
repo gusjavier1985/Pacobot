@@ -1,8 +1,9 @@
 [
   {
     "archivo": "grifos_individuales_puertas.jpg",
-    "titulo": "Grifos individuales de puertas",
-    "descripcion": "Ubicado debajo de los asientos cerca de las puertas laterales. Al accionar el grifo rojo a través de la ventanita, se produce la pérdida de aire para el accionamiento manual de las puertas y se evita que la ventanita se cierre.",
+    "titulo": "Grifos individuales de puertas (Mitsubishi)",
+    "modelo": "Mitsubishi",
+    "descripcion": "En la formación Mitsubishi, se encuentra ubicado debajo de los asientos cerca de las puertas laterales. Al accionar el grifo rojo a través de la ventanita, se produce la pérdida de aire para el accionamiento manual de las puertas y se evita que la ventanita se cierre.",
     "palabras_clave": [
       "grifo",
       "grifos",
@@ -16,13 +17,16 @@
       "aislar puerta",
       "motor de puertas",
       "perdida de aire",
-      "asientos"
+      "asientos",
+      "mitsubishi",
+      "mitsu"
     ]
   },
   {
     "archivo": "extinguidor_de_incendios.jpg",
-    "titulo": "Extinguidor de incendios",
-    "descripcion": "En los coches sin cabina existen dos extinguidores (uno en cada extremo). En los coches con cabina entera, 1/2 cabina y 1/2 cabina reformada, el extinguidor se encuentra alojado dentro de la misma cabina.",
+    "titulo": "Extinguidor de incendios (Mitsubishi)",
+    "modelo": "Mitsubishi",
+    "descripcion": "En la formación Mitsubishi, en los coches sin cabina existen dos extinguidores (uno en cada extremo). En los coches con cabina entera, 1/2 cabina y 1/2 cabina reformada, el extinguidor se encuentra alojado dentro de la misma cabina.",
     "palabras_clave": [
       "extinguidor",
       "extinguidores",
@@ -34,13 +38,16 @@
       "seguridad",
       "elementos de seguridad",
       "cabina",
-      "sin cabina"
+      "sin cabina",
+      "mitsubishi",
+      "mitsu"
     ]
   },
   {
     "archivo": "escalera_de_evacuacion.jpg",
-    "titulo": "Escaleras de evacuación",
-    "descripcion": "Cada coche de la formación se encuentra provisto de 1 escalera de emergencia, la cual se ubica debajo de uno de los asientos del coche e identificada mediante un autoadhesivo.",
+    "titulo": "Escaleras de evacuación (Mitsubishi)",
+    "modelo": "Mitsubishi",
+    "descripcion": "En la formación Mitsubishi, cada coche se encuentra provisto de 1 escalera de emergencia, la cual se ubica debajo de uno de los asientos del coche e identificada mediante un autoadhesivo.",
     "palabras_clave": [
       "escalera",
       "escaleras",
@@ -52,7 +59,9 @@
       "asiento",
       "autoadhesivo",
       "bajar gente",
-      "seguridad"
+      "seguridad",
+      "mitsubishi",
+      "mitsu"
     ]
   }
 ]
