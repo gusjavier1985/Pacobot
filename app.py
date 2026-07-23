@@ -105,7 +105,7 @@ def search_relevant_image(query):
         print(f"Error leyendo imagenes.json: {e}")
         return None
 
-    stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta"}
+    stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta", "se", "encuentra"}
     words = set(re.findall(r'\b\w+\b', query.lower())) - stopwords
 
     best_match = None
@@ -139,23 +139,22 @@ def query_groq_llm(user_prompt, image_info=None):
     
     image_context = ""
     if image_info:
-        image_context = f"\nINFORMACIÓN OFICIAL DE IMAGEN DISPONIBLE PARA ESTA CONSULTA:\n- Título: {image_info.get('titulo')}\n- Descripción detallada: {image_info.get('descripcion')}\n"
+        image_context = f"\nFICHA TÉCNICA OFICIAL DE LA IMAGEN ENCONTRADA:\n- Componente: {image_info.get('titulo')}\n- Explicación completa: {image_info.get('descripcion')}\n"
 
     system_instruction = f"""
     Eres Paco, un asistente técnico especializado para el personal de tráfico del Subte (motoristas, guardias, maniobristas).
     Tu función es ayudar a resolver fallas técnicas, averías en formaciones y responder procedimientos de actuación.
 
-    FRAGMENTOS DE MANUALES Y DATOS DISPONIBLES:
+    CONTEXTO DE MANUALES Y FICHA TÉCNICA:
     {relevant_context}
     {image_context}
 
-    Reglas estrictas:
-    1. Sé conciso, claro, cordial y directo. Ve al grano sin introducciones ni formalismos innecesarios.
-    2. SI HAY INFORMACIÓN DE IMAGEN DISPONIBLE ARRIBA, dale máxima prioridad a esa descripción para explicar exactamente la ubicación, componentes y funcionamiento.
-    3. Si el usuario te saluda, agradece o conversa cordialmente (ej: "gracias", "de nada", "hola"), responde de manera breve, atenta y profesional.
-    4. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual...".
-    5. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
-    6. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
+    Reglas estrictas de respuesta:
+    1. SI HAY FICHA TÉCNICA DE IMAGEN DISPONIBLE (arriba): Explica de forma COMPLETA y DETALLADA todo lo indicado en 'Explicación completa' (ubicación, colores, ventanitas, pérdida de aire, funcionamiento). NO omitas ningún detalle técnico.
+    2. PROHIBIDO NARRAR MULETILLAS O FRASES TIPO: "Según la información disponible", "De acuerdo al manual", "Según los datos". Empieza a responder directamente de forma natural y profesional.
+    3. Sé claro, técnico, cordial y directo al grano.
+    4. Para resolución de fallas o procedimientos, usa listas numeradas precisas.
+    5. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
     """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -169,7 +168,7 @@ def query_groq_llm(user_prompt, image_info=None):
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": user_prompt}
         ],
-        "temperature": 0.2
+        "temperature": 0.1
     }
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 200:
@@ -187,10 +186,10 @@ def api_preguntar():
     if not pregunta:
         return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
 
-    # Buscar si hay una imagen que coincida primero
+    # Buscar si hay una imagen que coincida
     image_info = search_relevant_image(pregunta)
 
-    # Consultar Groq pasándole la info de la imagen si la encontró
+    # Consultar Groq pasándole la ficha de la imagen
     respuesta_texto, error = query_groq_llm(pregunta, image_info=image_info)
     if error:
         return jsonify({'error': error}), 500
