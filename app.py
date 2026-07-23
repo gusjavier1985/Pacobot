@@ -15,9 +15,9 @@ import edge_tts
 AUDIO_DIR = "static_audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
-# Servidor Flask para la API Web y Health Check
+# Servidor Flask para la API Web
 app = Flask(__name__)
-CORS(app)  # Habilita consultas cruzadas desde Base44
+CORS(app, resources={r"/*": {"origins": "*"}})  # Habilita CORS global
 
 @app.route('/', methods=['GET'])
 def health_check():
@@ -25,7 +25,10 @@ def health_check():
 
 @app.route('/audio/<filename>', methods=['GET'])
 def get_audio(filename):
-    return send_from_directory(AUDIO_DIR, filename)
+    """Entrega el archivo de audio con cabeceras CORS explícitas"""
+    response = send_from_directory(AUDIO_DIR, filename)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 # Configuración y Credenciales
 TELEGRAM_TOKEN = "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU"
@@ -81,13 +84,19 @@ def search_relevant_chunks(query, top_k=3):
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
 def generate_voice_file(text, output_file):
-    """Genera audio con voz masculina argentina"""
+    """Genera audio con voz masculina argentina usando event loop independiente"""
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
     async def _generate():
         communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
         await communicate.save(output_file)
     
-    asyncio.run(_generate())
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_generate())
+        loop.close()
+    except Exception as e:
+        print(f"Error generando audio: {e}")
 
 def query_groq_llm(user_prompt):
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
@@ -144,7 +153,11 @@ def api_preguntar():
     filepath = os.path.join(AUDIO_DIR, filename)
     generate_voice_file(respuesta_texto, filepath)
 
+    # Forzar HTTPS para evitar bloqueo de contenido mixto en navegadores
     host_url = request.host_url.rstrip('/')
+    if host_url.startswith("http://"):
+        host_url = host_url.replace("http://", "https://", 1)
+
     audio_url = f"{host_url}/audio/{filename}"
 
     return jsonify({
@@ -229,10 +242,7 @@ def run_bot():
     bot.polling(non_stop=True)
 
 if __name__ == "__main__":
-    # Iniciar bot de Telegram en hilo separado
     threading.Thread(target=run_bot, daemon=True).start()
-    
-    # Iniciar API de Flask en puerto principal
     port = int(os.environ.get("PORT", 8080))
     print(f"🤖 Paco API & Bot ejecutándose en el puerto {port}...")
     app.run(host="0.0.0.0", port=port)
