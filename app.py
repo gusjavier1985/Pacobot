@@ -93,8 +93,7 @@ def search_relevant_chunks(query, top_k=3):
 
 def search_relevant_image(query, history=None):
     """
-    Analiza la consulta y busca coincidencias por modelo de tren y tema,
-    utilizando el historial reciente si en la pregunta actual no se especifica el modelo.
+    Busca coincidencias directas de frases/palabras clave en la base de datos de imágenes.
     """
     json_path = "imagenes.json"
     if not os.path.exists(json_path):
@@ -129,16 +128,10 @@ def search_relevant_image(query, history=None):
                 requested_model = model_name
                 break
 
-    stopwords = {"el", "la", "los", "las", "un", "una", "de", "del", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "donde", "esta", "encuentra", "ubicada", "ubicado", "estan"}
-    words = set(re.findall(r'\b\w+\b', query_lower)) - stopwords
-    
-    all_model_kws = [kw for kw_list in model_keywords.values() for kw in kw_list]
-    topic_words = set(w for w in words if w not in all_model_kws)
-
     matches = []
     for item in images_db:
-        keywords = set([kw.lower() for kw in item.get("palabras_clave", [])])
-        score = len(topic_words.intersection(keywords))
+        keywords = [kw.lower() for kw in item.get("palabras_clave", [])]
+        score = sum(1 for kw in keywords if kw in query_lower)
         if score >= 1:
             matches.append((score, item))
 
@@ -194,10 +187,11 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     Hablas de forma directa, profesional, fluida y al grano.
 
     REGLAS ESTRUCTURALES OBLIGATORIAS Y ESTRICTAS:
-    1. SI EXISTE UNA FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Responde ÚNICAMENTE con el texto contenido en 'Explicación completa exactísima'. Queda TOTALMENTE PROHIBIDO resumir, acortar, reescribir, parafrasear, agregar listas con viñetas, incluir conclusiones o mencionar números de página o manuales. Entrega la descripción PALABRA POR PALABRA.
-    2. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica" ni "Es importante tener en cuenta que se trata del tren X".
-    3. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos ni discursos introductorios.
-    4. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla. Si el usuario te hace una repregunta, responde teniendo en cuenta el contexto de los mensajes anteriores.
+    1. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas", "buenos días"): Responde ÚNICAMENTE de forma ultra corta: "¡Hola! ¿En qué te puedo ayudar?". Prohibido agregar frases sobre el Subte, explicaciones o repreguntas largas.
+    2. SI EXISTE UNA FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Responde ÚNICAMENTE con el texto contenido en 'Explicación completa exactísima'. Queda TOTALMENTE PROHIBIDO resumir, acortar, reescribir, parafrasear, agregar listas con viñetas, incluir conclusiones o mencionar números de página o manuales. Entrega la descripción PALABRA POR PALABRA.
+    3. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica" ni "Es importante tener en cuenta que se trata del tren X".
+    4. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos ni discursos introductorios.
+    5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla. Si el usuario te hace una repregunta, responde teniendo en cuenta el contexto de los mensajes anteriores.
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
     {relevant_context}
@@ -206,10 +200,9 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
 
     messages = [{"role": "system", "content": system_instruction}]
 
-    # Agregar historial de chat reciente para mantener la memoria viva
     if history and isinstance(history, list):
         clean_history = []
-        for msg in history[-6:]: # Mantiene los últimos 6 mensajes
+        for msg in history[-6:]:
             if isinstance(msg, dict) and "role" in msg and "content" in msg:
                 clean_history.append({"role": msg["role"], "content": msg["content"]})
         messages.extend(clean_history)
@@ -224,7 +217,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": messages,
-        "temperature": 0.0 # Temperatura en 0 para máxima fidelidad y cero creatividad
+        "temperature": 0.0
     }
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 200:
@@ -233,12 +226,12 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         err = response.json().get('error', {}).get('message', 'Error en la consulta')
         return None, f"⚠️ Error {response.status_code}: {err}"
 
-# --- ENDPOINT PARA BASE44 (CON MEMORIA / HISTORIAL) ---
+# --- ENDPOINT PARA BASE44 ---
 @app.route('/preguntar', methods=['POST'])
 def api_preguntar():
     data = request.get_json(silent=True) or {}
     pregunta = data.get('pregunta', '')
-    historial = data.get('historial', [])  # Acepta el historial desde el cliente Web/Base44
+    historial = data.get('historial', [])
     
     if not pregunta:
         return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
