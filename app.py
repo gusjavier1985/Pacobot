@@ -109,9 +109,9 @@ def query_groq_llm(user_prompt):
     {relevant_context}
 
     Reglas estrictas:
-    1. Sé conciso, claro y directo. Ve al grano sin introducciones ni formalismos innecesarios.
-    2. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual..." o "En el anexo LXVII...".
-    3. Basate estrictamente en los fragmentos provistos arriba.
+    1. Sé conciso, claro, cordial y directo. Ve al grano sin introducciones ni formalismos innecesarios.
+    2. Si el usuario te saluda, agradece o conversa cordialmente (ej: "gracias", "de nada", "hola"), responde de manera breve, atenta y profesional.
+    3. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual..." o "En el anexo LXVII...".
     4. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
     5. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
     """
