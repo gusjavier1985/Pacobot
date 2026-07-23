@@ -18,5 +18,41 @@
       "perdida de aire",
       "asientos"
     ]
+  },
+  {
+    "archivo": "extinguidor_de_incendios.jpg",
+    "titulo": "Extinguidor de incendios",
+    "descripcion": "En los coches sin cabina existen dos extinguidores (uno en cada extremo). En los coches con cabina entera, 1/2 cabina y 1/2 cabina reformada, el extinguidor se encuentra alojado dentro de la misma cabina.",
+    "palabras_clave": [
+      "extinguidor",
+      "extinguidores",
+      "matafuego",
+      "matafuegos",
+      "incendio",
+      "incendios",
+      "fuego",
+      "seguridad",
+      "elementos de seguridad",
+      "cabina",
+      "sin cabina"
+    ]
+  },
+  {
+    "archivo": "escalera_de_evacuacion.jpg",
+    "titulo": "Escaleras de evacuación",
+    "descripcion": "Cada coche de la formación se encuentra provisto de 1 escalera de emergencia, la cual se ubica debajo de uno de los asientos del coche e identificada mediante un autoadhesivo.",
+    "palabras_clave": [
+      "escalera",
+      "escaleras",
+      "evacuacion",
+      "evacuación",
+      "emergencia",
+      "escalera de emergencia",
+      "debajo del asiento",
+      "asiento",
+      "autoadhesivo",
+      "bajar gente",
+      "seguridad"
+    ]
   }
 ]
