@@ -93,7 +93,7 @@ def search_relevant_chunks(query, top_k=3):
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
 def search_relevant_image(query):
-    """Busca si hay una imagen que coincida con las palabras clave de la consulta"""
+    """Busca si hay una imagen que coincida con las palabras clave y devuelve su objeto completo"""
     json_path = "imagenes.json"
     if not os.path.exists(json_path):
         return None
@@ -118,9 +118,7 @@ def search_relevant_image(query):
             best_score = score
             best_match = item
 
-    if best_match:
-        return best_match.get("archivo")
-    return None
+    return best_match
 
 def generate_voice_file(text, output_file):
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
@@ -136,22 +134,28 @@ def generate_voice_file(text, output_file):
     except Exception as e:
         print(f"Error generando audio: {e}")
 
-def query_groq_llm(user_prompt):
+def query_groq_llm(user_prompt, image_info=None):
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
     
+    image_context = ""
+    if image_info:
+        image_context = f"\nINFORMACIÓN OFICIAL DE IMAGEN DISPONIBLE PARA ESTA CONSULTA:\n- Título: {image_info.get('titulo')}\n- Descripción detallada: {image_info.get('descripcion')}\n"
+
     system_instruction = f"""
     Eres Paco, un asistente técnico especializado para el personal de tráfico del Subte (motoristas, guardias, maniobristas).
     Tu función es ayudar a resolver fallas técnicas, averías en formaciones y responder procedimientos de actuación.
 
-    FRAGMENTOS DE MANUALES RECUPERADOS PARA ESTA CONSULTA:
+    FRAGMENTOS DE MANUALES Y DATOS DISPONIBLES:
     {relevant_context}
+    {image_context}
 
-    Reglas strictly:
+    Reglas estrictas:
     1. Sé conciso, claro, cordial y directo. Ve al grano sin introducciones ni formalismos innecesarios.
-    2. Si el usuario te saluda, agradece o conversa cordialmente (ej: "gracias", "de nada", "hola"), responde de manera breve, atenta y profesional.
-    3. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual..." o "En el anexo LXVII...".
-    4. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
-    5. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
+    2. SI HAY INFORMACIÓN DE IMAGEN DISPONIBLE ARRIBA, dale máxima prioridad a esa descripción para explicar exactamente la ubicación, componentes y funcionamiento.
+    3. Si el usuario te saluda, agradece o conversa cordialmente (ej: "gracias", "de nada", "hola"), responde de manera breve, atenta y profesional.
+    4. NO menciones códigos de anexos, números de revisión, nombres de archivos PDF ni frases como "Según el manual...".
+    5. Para resolución de fallas o procedimientos paso a paso, usa listas numeradas precisas.
+    6. Si hay duda o riesgo operativo, aconseja consultar con la central de tráfico.
     """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -183,7 +187,11 @@ def api_preguntar():
     if not pregunta:
         return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
 
-    respuesta_texto, error = query_groq_llm(pregunta)
+    # Buscar si hay una imagen que coincida primero
+    image_info = search_relevant_image(pregunta)
+
+    # Consultar Groq pasándole la info de la imagen si la encontró
+    respuesta_texto, error = query_groq_llm(pregunta, image_info=image_info)
     if error:
         return jsonify({'error': error}), 500
 
@@ -192,15 +200,12 @@ def api_preguntar():
     filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
     generate_voice_file(respuesta_texto, filepath_audio)
 
-    # Buscar Imagen Relacionada
-    image_file = search_relevant_image(pregunta)
-    
     host_url = request.host_url.rstrip('/')
     if host_url.startswith("http://"):
         host_url = host_url.replace("http://", "https://", 1)
 
     audio_url = f"{host_url}/audio/{filename_audio}"
-    imagen_url = f"{host_url}/images/{image_file}" if image_file else None
+    imagen_url = f"{host_url}/images/{image_info.get('archivo')}" if image_info else None
 
     return jsonify({
         'respuesta_texto': respuesta_texto,
@@ -235,7 +240,8 @@ def handle_voice_message(message):
             bot.reply_to(message, "⚠️ No logré escuchar con claridad el audio.")
             return
 
-        respuesta_texto, error = query_groq_llm(transcribed_text)
+        image_info = search_relevant_image(transcribed_text)
+        respuesta_texto, error = query_groq_llm(transcribed_text, image_info=image_info)
         if error:
             bot.reply_to(message, error)
             return
@@ -243,12 +249,11 @@ def handle_voice_message(message):
         bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
 
         # Enviar foto en Telegram si existe
-        image_file = search_relevant_image(transcribed_text)
-        if image_file:
-            img_path = os.path.join(IMAGE_DIR, image_file)
+        if image_info:
+            img_path = os.path.join(IMAGE_DIR, image_info.get('archivo'))
             if os.path.exists(img_path):
                 with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption="📸 Imagen de referencia")
+                    bot.send_photo(message.chat.id, photo, caption=f"📸 {image_info.get('titulo', 'Imagen de referencia')}")
 
         bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
@@ -268,7 +273,9 @@ def handle_voice_message(message):
 def handle_text_message(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
-        respuesta_texto, error = query_groq_llm(message.text)
+        
+        image_info = search_relevant_image(message.text)
+        respuesta_texto, error = query_groq_llm(message.text, image_info=image_info)
         if error:
             bot.reply_to(message, error)
             return
@@ -276,12 +283,11 @@ def handle_text_message(message):
         bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
 
         # Enviar foto en Telegram si existe
-        image_file = search_relevant_image(message.text)
-        if image_file:
-            img_path = os.path.join(IMAGE_DIR, image_file)
+        if image_info:
+            img_path = os.path.join(IMAGE_DIR, image_info.get('archivo'))
             if os.path.exists(img_path):
                 with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption="📸 Imagen de referencia")
+                    bot.send_photo(message.chat.id, photo, caption=f"📸 {image_info.get('titulo', 'Imagen de referencia')}")
 
         bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
