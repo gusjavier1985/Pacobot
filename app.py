@@ -6,7 +6,6 @@ import asyncio
 import re
 import uuid
 import json
-import time
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import telebot
@@ -95,16 +94,22 @@ def search_relevant_chunks(query, top_k=3):
 def search_relevant_image(query, history=None):
     """
     Busca coincidencias directas de frases/palabras clave en la base de datos de imágenes.
+    Soporta variantes de nombre de archivo con mayúscula o minúscula.
     """
-    json_path = "imagenes.json"
-    if not os.path.exists(json_path):
+    json_path = None
+    for candidate in ["imagenes.json", "Imagenes.json", "IMAGENES.JSON"]:
+        if os.path.exists(candidate):
+            json_path = candidate
+            break
+
+    if not json_path:
         return {"type": "NONE", "image": None, "models": []}
     
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             images_db = json.load(f)
     except Exception as e:
-        print(f"Error leyendo imagenes.json: {e}")
+        print(f"Error leyendo {json_path}: {e}")
         return {"type": "NONE", "image": None, "models": []}
 
     query_lower = query.lower()
@@ -165,37 +170,12 @@ def generate_voice_file(text, output_file):
         await communicate.save(output_file)
     
     try:
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                new_loop.run_until_complete(_generate())
-                new_loop.close()
-            else:
-                loop.run_until_complete(_generate())
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(_generate())
-            loop.close()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_generate())
+        loop.close()
     except Exception as e:
         print(f"Error generando audio: {e}")
-
-def cleanup_old_audio_files():
-    """Limpia archivos de audio temporales con más de 1 hora de antigüedad para liberar espacio."""
-    while True:
-        try:
-            now = time.time()
-            for f in os.listdir(AUDIO_DIR):
-                filepath = os.path.join(AUDIO_DIR, f)
-                if os.path.isfile(filepath):
-                    # Si el archivo tiene más de 3600 segundos (1 hora)
-                    if now - os.path.getmtime(filepath) > 3600:
-                        os.remove(filepath)
-        except Exception as e:
-            print(f"Error en limpieza de audios: {e}")
-        time.sleep(1800) # Se ejecuta cada 30 minutos
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
     image_context = ""
@@ -205,7 +185,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
         image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n- Texto exacto a responder: {img_info.get('descripcion')}\n"
-        relevant_context = "" # Se limpia para evitar interferencias de PDFs o inventos
+        relevant_context = ""
     else:
         relevant_context = search_relevant_chunks(user_prompt, top_k=3)
         if search_result and search_result.get("type") == "AMBIGUOUS":
@@ -218,7 +198,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
 
     REGLAS ESTRUCTURALES OBLIGATORIAS Y ESTRICTAS:
     1. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas", "buenos días"): Responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
-    2. SI EXISTE FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Tu respuesta DEBE SER EXACTAMENTE Y PALABRA POR PALABRA el texto que aparece en 'Texto exacto a responder'. Queda TOTALMENTE PROHIBIDO modificarlo, resumirlo, reescribirlo, agregar datos inventados (como decir que está en el techo o en el lado opuesto) o interpretarlo. REPRODUCE EL TEXTO COMPLETO TAL CUAL ESTá REDACTADO EN LA FICHA TÉCNICA.
+    2. SI EXISTE FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Tu respuesta DEBE SER EXACTAMENTE Y PALABRA POR PALABRA el texto que aparece en 'Texto exacto a responder'. Queda TOTALMENTE PROHIBIDO modificarlo, resumirlo, reescribirlo, agregar datos inventados o interpretarlo. REPRODUCE EL TEXTO COMPLETO TAL CUAL ESTÁ REDACTADO EN LA FICHA TÉCNICA.
     3. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica".
     4. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos.
     5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla.
@@ -384,12 +364,7 @@ def run_bot():
     bot.polling(non_stop=True)
 
 if __name__ == "__main__":
-    # Hilo para el Bot de Telegram
     threading.Thread(target=run_bot, daemon=True).start()
-    
-    # Hilo para limpiar audios viejos automáticamente cada cierto tiempo
-    threading.Thread(target=cleanup_old_audio_files, daemon=True).start()
-    
     port = int(os.environ.get("PORT", 8080))
     print(f"🤖 Paco API & Bot ejecutándose en el puerto {port}...")
     app.run(host="0.0.0.0", port=port)
