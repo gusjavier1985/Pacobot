@@ -174,30 +174,80 @@ def generate_voice_file(text, output_file):
     except Exception as e:
         print(f"Error generando audio: {e}")
 
-def query_groq_llm(user_prompt, search_result=None, history=None):
-    image_context = ""
-    relevant_context = ""
+def limpiar_redundancia(texto):
+    """
+    Función de respaldo en Python: Elimina títulos numerados en negrita si la viñeta de abajo
+    repite exactamente la misma instrucción.
+    """
+    if not texto:
+        return texto
 
+    lineas = texto.split('\n')
+    lineas_limpias = []
+    i = 0
+    while i < len(lineas):
+        linea_actual = lineas[i].strip()
+        if i + 1 < len(lineas):
+            linea_siguiente = lineas[i + 1].strip()
+            
+            # Detecta patrones como: 1. **Conectar disyuntores:** \n - Conectar disyuntores.
+            match_encab = re.match(r'^\d+\.\s*\*\*(.*?)\*\*:?$', linea_actual)
+            match_vineta = re.match(r'^[-\*]\s*(.*)$', linea_siguiente)
+            
+            if match_encab and match_vineta:
+                t_encab = match_encab.group(1).strip().lower().rstrip('.')
+                t_vineta = match_vineta.group(1).strip().lower().rstrip('.')
+                
+                # Si el título y el texto de abajo dicen lo mismo, omite el título duplicado
+                if t_encab in t_vineta or t_vineta in t_encab:
+                    lineas_limpias.append(f"- {match_vineta.group(1).strip()}")
+                    i += 2
+                    continue
+
+        lineas_limpias.append(lineas[i])
+        i += 1
+
+    return "\n".join(lineas_limpias)
+
+def query_groq_llm(user_prompt, search_result=None, history=None):
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
-        image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n{img_info.get('descripcion')}\n"
-        relevant_context = ""
-    else:
-        relevant_context = search_relevant_chunks(user_prompt, top_k=3)
-        if search_result and search_result.get("type") == "AMBIGUOUS":
-            models_str = " o ".join(search_result["models"])
-            image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
+        descripcion_directa = img_info.get('descripcion', '')
+        if descripcion_directa:
+            return limpiar_redundancia(descripcion_directa), None
+
+    relevant_context = search_relevant_chunks(user_prompt, top_k=3)
+    image_context = ""
+    
+    if search_result and search_result.get("type") == "AMBIGUOUS":
+        models_str = " o ".join(search_result["models"])
+        image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
     Hablas de forma directa, profesional, fluida y al grano.
 
-    REGLAS DE FORMATO OBLIGATORIAS (ESTRICTO):
-    1. PROHIBIDA LA REDUNDANCIA DE TÍTULOS: NUNCA crees un encabezado o punto numerado en negrita y luego repitas el mismo texto en una viñeta abajo. (ESTÁ PROHIBIDO HACER ESTO: `1. **Conectar batería:** \\n - Conectar batería`).
-    2. FORMATO DE LISTA LIMPIO: Muestra únicamente un encabezado general si corresponde y luego una lista simple usando guiones (`- `) para cada paso.
-    3. SI EXISTE FICHA TÉCNICA OFICIAL: Transcribe únicamente los pasos correspondientes de la ficha técnica respetando el orden. No agregues pasos inventados.
-    4. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas"): Responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
-    5. SIN PREÁMBULOS: Nunca uses expresiones como "Según el manual", "De acuerdo con la información", "A continuación presento".
+    ESTRUCTURA DE RESPUESTA OBLIGATORIA:
+    Responde SIEMPRE usando listas simples con guiones (-). NUNCA agregues un encabezado numerado o en negrita antes de una viñeta si vas a decir lo mismo.
+
+    EJEMPLO DE FORMATO CORRECTO:
+    **Encendido de una Formación CAF 6000**
+
+    - Conectar disyuntores.
+    - Conectar la llave de toma de mando (A.T.P).
+    - Conectar batería.
+    - Inversora adelante.
+    - Conectar freno de estacionamiento.
+
+    EJEMPLO DE FORMATO PROHIBIDO (NUNCA USAR ESTO):
+    1. **Conectar disyuntores:**
+       - Conectar disyuntores.
+    2. **Conectar batería:**
+       - Conectar batería.
+
+    REGLAS GENERALES:
+    1. Si el usuario solo saluda (ej: "hola", "buenas"), responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
+    2. Sin preámbulos: Nunca uses frases como "Según el manual" o "A continuación".
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
     {relevant_context}
@@ -227,7 +277,9 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     }
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content'], None
+        raw_text = response.json()['choices'][0]['message']['content']
+        # Aplicamos la limpieza automática por Python
+        return limpiar_redundancia(raw_text), None
     else:
         err = response.json().get('error', {}).get('message', 'Error en la consulta')
         return None, f"⚠️ Error {response.status_code}: {err}"
