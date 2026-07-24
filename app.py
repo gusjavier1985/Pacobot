@@ -6,6 +6,7 @@ import asyncio
 import re
 import uuid
 import json
+import unicodedata
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import telebot
@@ -68,9 +69,18 @@ if not chunks:
 
 print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
 
+def normalize_text(text):
+    """Remueve tildes, acentos y convierte a minúsculas para comparaciones flexibles."""
+    if not text:
+        return ""
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    return text.lower().strip()
+
 def search_relevant_chunks(query, top_k=3):
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
-    words = re.findall(r'\b\w+\b', query.lower())
+    query_norm = normalize_text(query)
+    words = re.findall(r'\b\w+\b', query_norm)
     keywords = [w for w in words if w not in stopwords and len(w) > 2]
 
     if not keywords:
@@ -78,8 +88,8 @@ def search_relevant_chunks(query, top_k=3):
 
     scored_chunks = []
     for chunk in chunks:
-        chunk_lower = chunk.lower()
-        score = sum(1 for kw in keywords if kw in chunk_lower)
+        chunk_norm = normalize_text(chunk)
+        score = sum(1 for kw in keywords if kw in chunk_norm)
         if score > 0:
             scored_chunks.append((score, chunk))
 
@@ -108,39 +118,47 @@ def search_relevant_image(query, history=None):
         print(f"Error leyendo {json_path}: {e}")
         return {"type": "NONE", "image": None, "models": [], "all_titles": []}
 
-    query_lower = query.lower()
+    query_norm = normalize_text(query)
     all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
 
     # Detección de preguntas generales sobre imágenes cargadas
-    if any(p in query_lower for p in ["imagenes", "imágenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes"]):
+    if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes"]):
         return {"type": "GENERAL_QUERY", "image": None, "models": [], "all_titles": all_titles}
 
     model_keywords = {
-        "Mitsubishi": ["mitsubishi", "mitsu", "japonés", "japones"],
+        "Mitsubishi": ["mitsubishi", "mitsu", "japones", "japonesa"],
         "CAF 6000": ["caf", "caf6000", "caf 6000", "6000", "seis mil", "6 mil"]
     }
     
     requested_model = None
     for model_name, kw_list in model_keywords.items():
-        if any(kw in query_lower for kw in kw_list):
+        if any(kw in query_norm for kw in kw_list):
             requested_model = model_name
             break
 
     if not requested_model and history and isinstance(history, list):
-        recent_text = " ".join([m.get("content", "") for m in history[-4:]]).lower()
+        recent_text = normalize_text(" ".join([m.get("content", "") for m in history[-4:]]))
         for model_name, kw_list in model_keywords.items():
             if any(kw in recent_text for kw in kw_list):
                 requested_model = model_name
                 break
 
+    # Búsqueda ultra flexible por palabras clave (soporta singular/plural y sin acentos)
     matches = []
+    query_words = set(re.findall(r'\b\w+\b', query_norm))
+
     for item in images_db:
-        keywords = [kw.lower() for kw in item.get("palabras_clave", [])]
+        keywords = [normalize_text(kw) for kw in item.get("palabras_clave", [])]
         score = 0
         for kw in keywords:
-            if kw in query_lower or query_lower in kw:
-                score += 1
-        if score >= 1:
+            # Coincidencia de frase o palabra clave
+            if kw in query_norm or any(kw in w or w in kw for w in query_words if len(w) > 3):
+                score += 2
+            # Coincidencia de singular / plural (ej: matafuego / matafuegos)
+            elif any(kw.rstrip('s') == w.rstrip('s') for w in query_words):
+                score += 2
+
+        if score >= 2:
             matches.append((score, item))
 
     if not matches:
@@ -152,14 +170,16 @@ def search_relevant_image(query, history=None):
 
     available_models = list(set(item.get("modelo", "General") for item in best_matches))
 
+    # Si se especificó el modelo en la consulta
     if requested_model:
-        model_match = next((item for item in best_matches if item.get("modelo", "").lower() == requested_model.lower()), None)
+        model_match = next((item for item in best_matches if normalize_text(item.get("modelo", "")) == normalize_text(requested_model)), None)
         if not model_match:
-            model_match = next((m[1] for m in matches if m[1].get("modelo", "").lower() == requested_model.lower()), None)
+            model_match = next((m[1] for m in matches if normalize_text(m[1].get("modelo", "")) == normalize_text(requested_model)), None)
         
         if model_match:
             return {"type": "EXACT", "image": model_match, "models": [requested_model], "all_titles": all_titles}
 
+    # Si hay múltiples modelos posibles y el usuario no aclaró cuál
     if len(available_models) > 1 and not requested_model:
         return {"type": "AMBIGUOUS", "image": None, "models": available_models, "all_titles": all_titles}
 
@@ -180,10 +200,6 @@ def generate_voice_file(text, output_file):
         print(f"Error generando audio: {e}")
 
 def limpiar_redundancia(texto):
-    """
-    Función de respaldo en Python: Elimina títulos numerados en negrita si la viñeta de abajo
-    repite exactamente la misma instrucción.
-    """
     if not texto:
         return texto
 
@@ -195,7 +211,6 @@ def limpiar_redundancia(texto):
         if i + 1 < len(lineas):
             linea_siguiente = lineas[i + 1].strip()
             
-            # Detecta patrones como: 1. **Conectar disyuntores:** \n - Conectar disyuntores.
             match_encab = re.match(r'^\d+\.\s*\*\*(.*?)\*\*:?$', linea_actual)
             match_vineta = re.match(r'^[-\*]\s*(.*)$', linea_siguiente)
             
@@ -214,12 +229,19 @@ def limpiar_redundancia(texto):
     return "\n".join(lineas_limpias)
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
+    # 1. Coincidencia exacta con imagen -> Devolver la descripción del JSON directo
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
         descripcion_directa = img_info.get('descripcion', '')
         if descripcion_directa:
             return limpiar_redundancia(descripcion_directa), None
 
+    # 2. Ambigüedad de modelos -> Preguntar directamente al usuario sin inventar
+    if search_result and search_result.get("type") == "AMBIGUOUS":
+        models_str = " o ".join(search_result["models"])
+        return f"- Tengo imágenes registradas para {models_str}.\n- Por favor, indicame de qué modelo necesitas ver la ubicación (por ejemplo: 'matafuego Mitsubishi' o 'matafuego CAF 6000').", None
+
+    # 3. Pregunta general sobre imágenes
     if search_result and search_result.get("type") == "GENERAL_QUERY":
         titles = search_result.get("all_titles", [])
         if titles:
@@ -228,12 +250,8 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         else:
             return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
 
+    # 4. Búsqueda en los manuales PDF
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
-    image_context = ""
-    
-    if search_result and search_result.get("type") == "AMBIGUOUS":
-        models_str = " o ".join(search_result["models"])
-        image_context = f"\nNOTA DE DESAMBIGUACIÓN: La consulta aplica a varios modelos ({models_str}). Pregúntale directo al usuario a qué tren se refiere.\n"
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
@@ -242,22 +260,12 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     ESTRUCTURA DE RESPUESTA OBLIGATORIA:
     Responde SIEMPRE usando listas simples con guiones (-). NUNCA agregues un encabezado numerado o en negrita antes de una viñeta si vas a decir lo mismo.
 
-    EJEMPLO DE FORMATO CORRECTO:
-    **Encendido de una Formación CAF 6000**
-
-    - Conectar disyuntores.
-    - Conectar la llave de toma de mando (A.T.P).
-    - Conectar batería.
-    - Inversora adelante.
-    - Conectar freno de estacionamiento.
-
     REGLAS GENERALES:
     1. Si el usuario solo saluda (ej: "hola", "buenas"), responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
     2. Sin preámbulos: Nunca uses frases como "Según el manual" o "A continuación".
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
     {relevant_context}
-    {image_context}
     """
 
     messages = [{"role": "system", "content": system_instruction}]
