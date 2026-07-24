@@ -284,7 +284,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         err = response.json().get('error', {}).get('message', 'Error en la consulta')
         return None, f"⚠️ Error {response.status_code}: {err}"
 
-# --- ENDPOINT PARA BASE44 ---
+# --- ENDPOINT PARA BASE44 (CHAT) ---
 @app.route('/preguntar', methods=['POST'])
 def api_preguntar():
     data = request.get_json(silent=True) or {}
@@ -317,6 +317,27 @@ def api_preguntar():
         'audio_url': audio_url,
         'imagen_url': imagen_url
     })
+
+# --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES CON LA VOZ DE PACO ---
+@app.route('/generar-audio', methods=['POST'])
+def api_generar_audio():
+    data = request.get_json(silent=True) or {}
+    texto = data.get('texto', '')
+    
+    if not texto:
+        return jsonify({'error': 'Debes enviar el campo "texto"'}), 400
+
+    filename_audio = f"audio_nov_{uuid.uuid4().hex[:8]}.mp3"
+    filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
+    generate_voice_file(texto, filepath_audio)
+
+    host_url = request.host_url.rstrip('/')
+    if host_url.startswith("http://"):
+        host_url = host_url.replace("http://", "https://", 1)
+
+    audio_url = f"{host_url}/audio/{filename_audio}"
+
+    return jsonify({'audio_url': audio_url})
 
 # --- MANEJADORES TELEGRAM ---
 @bot.message_handler(commands=['start', 'help'])
