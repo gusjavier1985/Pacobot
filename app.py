@@ -99,16 +99,21 @@ def search_relevant_image(query, history=None):
             break
 
     if not json_path:
-        return {"type": "NONE", "image": None, "models": []}
+        return {"type": "NONE", "image": None, "models": [], "all_titles": []}
     
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             images_db = json.load(f)
     except Exception as e:
         print(f"Error leyendo {json_path}: {e}")
-        return {"type": "NONE", "image": None, "models": []}
+        return {"type": "NONE", "image": None, "models": [], "all_titles": []}
 
     query_lower = query.lower()
+    all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
+
+    # Detección de preguntas generales sobre imágenes cargadas
+    if any(p in query_lower for p in ["imagenes", "imágenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes"]):
+        return {"type": "GENERAL_QUERY", "image": None, "models": [], "all_titles": all_titles}
 
     model_keywords = {
         "Mitsubishi": ["mitsubishi", "mitsu", "japonés", "japones"],
@@ -139,7 +144,7 @@ def search_relevant_image(query, history=None):
             matches.append((score, item))
 
     if not matches:
-        return {"type": "NONE", "image": None, "models": []}
+        return {"type": "NONE", "image": None, "models": [], "all_titles": all_titles}
 
     matches.sort(key=lambda x: x[0], reverse=True)
     max_score = matches[0][0]
@@ -153,12 +158,12 @@ def search_relevant_image(query, history=None):
             model_match = next((m[1] for m in matches if m[1].get("modelo", "").lower() == requested_model.lower()), None)
         
         if model_match:
-            return {"type": "EXACT", "image": model_match, "models": [requested_model]}
+            return {"type": "EXACT", "image": model_match, "models": [requested_model], "all_titles": all_titles}
 
     if len(available_models) > 1 and not requested_model:
-        return {"type": "AMBIGUOUS", "image": None, "models": available_models}
+        return {"type": "AMBIGUOUS", "image": None, "models": available_models, "all_titles": all_titles}
 
-    return {"type": "EXACT", "image": best_matches[0], "models": available_models}
+    return {"type": "EXACT", "image": best_matches[0], "models": available_models, "all_titles": all_titles}
 
 def generate_voice_file(text, output_file):
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
@@ -198,7 +203,6 @@ def limpiar_redundancia(texto):
                 t_encab = match_encab.group(1).strip().lower().rstrip('.')
                 t_vineta = match_vineta.group(1).strip().lower().rstrip('.')
                 
-                # Si el título y el texto de abajo dicen lo mismo, omite el título duplicado
                 if t_encab in t_vineta or t_vineta in t_encab:
                     lineas_limpias.append(f"- {match_vineta.group(1).strip()}")
                     i += 2
@@ -215,6 +219,14 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         descripcion_directa = img_info.get('descripcion', '')
         if descripcion_directa:
             return limpiar_redundancia(descripcion_directa), None
+
+    if search_result and search_result.get("type") == "GENERAL_QUERY":
+        titles = search_result.get("all_titles", [])
+        if titles:
+            lista_str = "\n".join([f"- {t}" for t in titles])
+            return f"Sí, tengo las siguientes imágenes técnicas cargadas en el sistema:\n\n{lista_str}\n\nPuedes preguntarme por cualquiera de ellas para ver la ubicación o detalles.", None
+        else:
+            return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
 
     relevant_context = search_relevant_chunks(user_prompt, top_k=3)
     image_context = ""
@@ -238,12 +250,6 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     - Conectar batería.
     - Inversora adelante.
     - Conectar freno de estacionamiento.
-
-    EJEMPLO DE FORMATO PROHIBIDO (NUNCA USAR ESTO):
-    1. **Conectar disyuntores:**
-       - Conectar disyuntores.
-    2. **Conectar batería:**
-       - Conectar batería.
 
     REGLAS GENERALES:
     1. Si el usuario solo saluda (ej: "hola", "buenas"), responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
@@ -278,7 +284,6 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 200:
         raw_text = response.json()['choices'][0]['message']['content']
-        # Aplicamos la limpieza automática por Python
         return limpiar_redundancia(raw_text), None
     else:
         err = response.json().get('error', {}).get('message', 'Error en la consulta')
