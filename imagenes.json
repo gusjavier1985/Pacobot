@@ -1,4 +1,4 @@
-[
+67[
   {
     "archivo": "grifos_individuales_puertas.jpg",
     "titulo": "Grifos individuales de puertas (Mitsubishi)",
@@ -57,20 +57,23 @@
       "japones"
     ]
   },
-{
-"archivo":"encender_y_apagar_formacion_caf_6000.jpg
-",
-"titulo": "Encender y Apagar una Formación",
-"modelo": "caf 6000",
-"palabras_clave": [
-"encender caf 600",
-"apagar caf 600",
-"encender y apagar caf 6000",
-"encendido y pagado del caf 6000",
-"encendido y apagado del 6000",
-"encender 6000",
-"apagar 6000",
- ]
-}
+  {
+    "archivo": "encender_y_apagar_formacion_caf_6000.jpg",
+    "titulo": "Encendido y Apagado una Formación",
+    "modelo": "CAF 6000",
+    "descripcion": "2. Encender y Apagar una Formación\n\nEncendido:\n- Inversora adelante.\n- Conectar batería.\n- Conectar llave de toma de mando (A.T.P).\n- Esperar la inicialización del M.A.C.\n- Conectar los equipos en forma automática o manual.\n- Conectar disyuntores.\n- Desconectar freno de estacionamiento.\n\nApagado:\n- Inversora adelante.\n- Conectar freno de estacionamiento.\n- Desconectar los equipos en forma automática o manual.\n- Desconectar llave de toma de mando (A.T.P).\n- Desconectar batería.\n- Centrar inversora.\n\nNota importante (Reseteo): Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento.",
+    "palabras_clave": [
+      "encender",
+      "encendido",
+      "apagar",
+      "apagado",
+      "como encender",
+      "como apagar",
+      "reseteo",
+      "resetear",
+      "caf 6000",
+      "caf6000"
+    ]
+  }
 ]
 
