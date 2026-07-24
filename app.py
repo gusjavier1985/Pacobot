@@ -45,30 +45,6 @@ GROQ_API_KEY = "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"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Indexación RAG Nativa de PDFs
-print("Indexando manuales técnicos completos...")
-chunks = []
-pdf_files = sorted(glob.glob("*.pdf"))
-
-for pdf in pdf_files:
-    try:
-        reader = PdfReader(pdf)
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                paragraphs = text.split("\n\n")
-                for p in paragraphs:
-                    clean_p = p.strip()
-                    if len(clean_p) > 25:
-                        chunks.append(clean_p)
-    except Exception as e:
-        print(f"Error procesando {pdf}: {e}")
-
-if not chunks:
-    chunks = ["No hay manuales cargados en el sistema."]
-
-print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
-
 def normalize_text(text):
     """Remueve tildes, acentos y convierte a minúsculas para comparaciones flexibles."""
     if not text:
@@ -77,19 +53,68 @@ def normalize_text(text):
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
     return text.lower().strip()
 
-def search_relevant_chunks(query, top_k=3):
+# Indexación RAG Nativa de PDFs mejorada
+print("Indexando manuales técnicos completos...")
+chunks = []
+pdf_files = sorted(glob.glob("*.pdf"))
+
+for pdf in pdf_files:
+    try:
+        reader = PdfReader(pdf)
+        full_text = ""
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                full_text += t + "\n"
+        
+        # Separación inteligente en bloques de 350 caracteres con superposición
+        lines = [line.strip() for line in full_text.split("\n") if line.strip()]
+        current_chunk = []
+        current_len = 0
+        for line in lines:
+            current_chunk.append(line)
+            current_len += len(line)
+            if current_len >= 350:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = current_chunk[-2:]  # Mantiene solapamiento de 2 líneas
+                current_len = sum(len(l) for l in current_chunk)
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+    except Exception as e:
+        print(f"Error procesando {pdf}: {e}")
+
+if not chunks:
+    chunks = ["No hay manuales cargados en el sistema."]
+
+print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
+
+# Diccionario de equivalencias y sinónimos para el lenguaje del Subte
+SYNONYMS = {
+    "prender": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando", "bateria", "disyuntor", "preparacion"],
+    "prendido": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando"],
+    "encender": ["encendido", "puesta en servicio", "energizacion", "mando"],
+    "grifo": ["llave", "grifo", "valvula", "aislar", "puerta"],
+    "matafuego": ["extintor", "matafuego", "fuego"],
+    "matafuegos": ["extintor", "matafuego", "fuego"],
+    "escalera": ["escalera", "evacuacion", "emergencia"]
+}
+
+def search_relevant_chunks(query, top_k=4):
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
     keywords = [w for w in words if w not in stopwords and len(w) > 2]
 
-    if not keywords:
-        keywords = words
+    # Expandir palabras clave con sinónimos
+    expanded_keywords = set(keywords)
+    for kw in keywords:
+        if kw in SYNONYMS:
+            expanded_keywords.update(SYNONYMS[kw])
 
     scored_chunks = []
     for chunk in chunks:
         chunk_norm = normalize_text(chunk)
-        score = sum(1 for kw in keywords if kw in chunk_norm)
+        score = sum(1 for kw in expanded_keywords if kw in chunk_norm)
         if score > 0:
             scored_chunks.append((score, chunk))
 
@@ -143,7 +168,6 @@ def search_relevant_image(query, history=None):
                 requested_model = model_name
                 break
 
-    # Búsqueda ultra flexible por palabras clave (soporta singular/plural y sin acentos)
     matches = []
     query_words = set(re.findall(r'\b\w+\b', query_norm))
 
@@ -151,10 +175,8 @@ def search_relevant_image(query, history=None):
         keywords = [normalize_text(kw) for kw in item.get("palabras_clave", [])]
         score = 0
         for kw in keywords:
-            # Coincidencia de frase o palabra clave
-            if kw in query_norm or any(kw in w or w in kw for w in query_words if len(w) > 3):
+            if kw in query_norm or any(kw in w or w in kw for w in query_words if len(w) > 2):
                 score += 2
-            # Coincidencia de singular / plural (ej: matafuego / matafuegos)
             elif any(kw.rstrip('s') == w.rstrip('s') for w in query_words):
                 score += 2
 
@@ -170,7 +192,6 @@ def search_relevant_image(query, history=None):
 
     available_models = list(set(item.get("modelo", "General") for item in best_matches))
 
-    # Si se especificó el modelo en la consulta
     if requested_model:
         model_match = next((item for item in best_matches if normalize_text(item.get("modelo", "")) == normalize_text(requested_model)), None)
         if not model_match:
@@ -179,7 +200,6 @@ def search_relevant_image(query, history=None):
         if model_match:
             return {"type": "EXACT", "image": model_match, "models": [requested_model], "all_titles": all_titles}
 
-    # Si hay múltiples modelos posibles y el usuario no aclaró cuál
     if len(available_models) > 1 and not requested_model:
         return {"type": "AMBIGUOUS", "image": None, "models": available_models, "all_titles": all_titles}
 
@@ -236,10 +256,10 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         if descripcion_directa:
             return limpiar_redundancia(descripcion_directa), None
 
-    # 2. Ambigüedad de modelos -> Preguntar directamente al usuario sin inventar
+    # 2. Ambigüedad de modelos -> Preguntar directamente al usuario
     if search_result and search_result.get("type") == "AMBIGUOUS":
         models_str = " o ".join(search_result["models"])
-        return f"- Tengo imágenes registradas para {models_str}.\n- Por favor, indicame de qué modelo necesitas ver la ubicación (por ejemplo: 'matafuego Mitsubishi' o 'matafuego CAF 6000').", None
+        return f"- Tengo información registrada para {models_str}.\n- Por favor, indicame de qué modelo necesitas la consulta (por ejemplo: 'matafuego Mitsubishi' o 'matafuego CAF 6000').", None
 
     # 3. Pregunta general sobre imágenes
     if search_result and search_result.get("type") == "GENERAL_QUERY":
@@ -250,21 +270,23 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         else:
             return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
 
-    # 4. Búsqueda en los manuales PDF
-    relevant_context = search_relevant_chunks(user_prompt, top_k=3)
+    # 4. Búsqueda estricta en los manuales PDF
+    relevant_context = search_relevant_chunks(user_prompt, top_k=4)
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
     Hablas de forma directa, profesional, fluida y al grano.
 
+    REGLA DE ORO OBLIGATORIA (CERO ALUCINACIONES):
+    1. Responde ÚNICAMENTE basándote en el CONTEXTO TÉCNICO facilitado abajo.
+    2. Si el procedimiento o componente NO figura claramente en la información provista, responde estricta y únicamente:
+       "- No dispongo de la información exacta para esa consulta en los manuales ni en las imágenes cargadas."
+    3. NUNCA inventes términos mecánicos, motores de arranque ni pasos genéricos que no pertenezcan al Subte.
+
     ESTRUCTURA DE RESPUESTA OBLIGATORIA:
-    Responde SIEMPRE usando listas simples con guiones (-). NUNCA agregues un encabezado numerado o en negrita antes de una viñeta si vas a decir lo mismo.
+    Responde SIEMPRE usando listas simples con guiones (-). Sin preámbulos.
 
-    REGLAS GENERALES:
-    1. Si el usuario solo saluda (ej: "hola", "buenas"), responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
-    2. Sin preámbulos: Nunca uses frases como "Según el manual" o "A continuación".
-
-    INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
+    INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE DE LOS MANUALES:
     {relevant_context}
     """
 
