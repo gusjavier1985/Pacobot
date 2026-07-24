@@ -92,9 +92,6 @@ def search_relevant_chunks(query, top_k=3):
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
 def search_relevant_image(query, history=None):
-    """
-    Busca coincidencias directas de frases/palabras clave en la base de datos de imágenes.
-    """
     json_path = None
     for candidate in ["imagenes.json", "Imagenes.json", "IMAGENES.JSON"]:
         if os.path.exists(candidate):
@@ -183,7 +180,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
 
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
-        image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n- Texto exacto a responder: {img_info.get('descripcion')}\n"
+        image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n{img_info.get('descripcion')}\n"
         relevant_context = ""
     else:
         relevant_context = search_relevant_chunks(user_prompt, top_k=3)
@@ -195,12 +192,11 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
     Hablas de forma directa, profesional, fluida y al grano.
 
-    REGLAS ESTRUCTURALES OBLIGATORIAS Y ESTRICTAS:
-    1. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas", "buenos días"): Responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
-    2. SI EXISTE FICHA TÉCNICA OFICIAL (IMAGEN DETECTADA): Tu respuesta DEBE SER EXACTAMENTE Y PALABRA POR PALABRA el texto que aparece en 'Texto exacto a responder'. Queda TOTALMENTE PROHIBIDO modificarlo, resumirlo, reescribirlo, agregar datos inventados o interpretarlo. REPRODUCE EL TEXTO COMPLETO TAL CUAL ESTÁ REDACTADO EN LA FICHA TÉCNICA.
-    3. TOTALMENTE PROHIBIDAS LAS MULETILLAS Y PREÁMBULOS: Nunca uses frases como "Según la información proporcionada", "De acuerdo al manual", "En la página X", "En resumen", "Según la ficha técnica".
-    4. RESPUESTA DIRECTA: Comienza tu respuesta inmediatamente con la información técnica necesaria, sin saludos repetitivos.
-    5. CONTINUIDAD CONVERSACIONAL: Mantén la memoria del hilo de la charla.
+    REGLAS DE FORMATO Y ESTRUCTURA OBLIGATORIAS:
+    1. SI EXISTE FICHA TÉCNICA OFICIAL: Debes responder ÚNICAMENTE con el texto exacto de la ficha técnica. MANTÉN ESTRICTAMENTE TODOS LOS SALTOS DE LÍNEA, ENCABEZADOS Y LISTAS CON VIÑETAS (-). NO JUNTES LAS ORACIONES EN UN SOLO PÁRRAFO.
+    2. SI EL USUARIO SOLO SALUDA (ej: "hola", "buenas"): Responde ÚNICAMENTE: "¡Hola! ¿En qué te puedo ayudar?".
+    3. PROHIBIDO USAR MULETILLAS O PREÁMBULOS: Nunca digas "Según la ficha...", "De acuerdo al manual...", "En resumen...", etc.
+    4. RESPUESTA DIRECTA Y LIMPIA.
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE:
     {relevant_context}
