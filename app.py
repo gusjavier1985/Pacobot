@@ -94,7 +94,6 @@ def search_relevant_chunks(query, top_k=3):
 def search_relevant_image(query, history=None):
     """
     Busca coincidencias directas de frases/palabras clave en la base de datos de imágenes.
-    Soporta variantes de nombre de archivo con mayúscula o minúscula.
     """
     json_path = None
     for candidate in ["imagenes.json", "Imagenes.json", "IMAGENES.JSON"]:
@@ -120,13 +119,11 @@ def search_relevant_image(query, history=None):
     }
     
     requested_model = None
-    # 1. Buscar modelo en la pregunta actual
     for model_name, kw_list in model_keywords.items():
         if any(kw in query_lower for kw in kw_list):
             requested_model = model_name
             break
 
-    # 2. Si no especifica modelo en la pregunta actual, buscar en el historial reciente
     if not requested_model and history and isinstance(history, list):
         recent_text = " ".join([m.get("content", "") for m in history[-4:]]).lower()
         for model_name, kw_list in model_keywords.items():
@@ -137,7 +134,10 @@ def search_relevant_image(query, history=None):
     matches = []
     for item in images_db:
         keywords = [kw.lower() for kw in item.get("palabras_clave", [])]
-        score = sum(1 for kw in keywords if kw in query_lower)
+        score = 0
+        for kw in keywords:
+            if kw in query_lower or query_lower in kw:
+                score += 1
         if score >= 1:
             matches.append((score, item))
 
@@ -181,7 +181,6 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     image_context = ""
     relevant_context = ""
 
-    # Si hay coincidencia de imagen EXACTA, usamos ÚNICAMENTE la ficha del JSON y ANULAMOS la búsqueda en PDFs
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
         image_context = f"\nFICHA TÉCNICA OFICIAL OBLIGATORIA:\n- Texto exacto a responder: {img_info.get('descripcion')}\n"
