@@ -13,13 +13,12 @@ import telebot
 from pypdf import PdfReader
 import edge_tts
 
-# Directorios para archivos estáticos (Audios e Imágenes)
+# Directorios para archivos estáticos
 AUDIO_DIR = "static_audio"
 IMAGE_DIR = "static_images"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
-# Servidor Flask para la API Web
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -39,21 +38,21 @@ def get_image(filename):
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
-# Configuración y Credenciales
-TELEGRAM_TOKEN = "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU"
-GROQ_API_KEY = "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"
+# Configuración y Credenciales (Lee desde Variables de Entorno en Render)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 def normalize_text(text):
-    """Remueve tildes, acentos y convierte a minúsculas para comparaciones flexibles."""
+    """Remueve tildes, acentos y convierte a minúsculas."""
     if not text:
         return ""
     text = unicodedata.normalize('NFD', text)
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
     return text.lower().strip()
 
-# Indexación RAG Nativa de PDFs mejorada
+# Indexación RAG optimizada para PDFs
 print("Indexando manuales técnicos completos...")
 chunks = []
 pdf_files = sorted(glob.glob("*.pdf"))
@@ -67,17 +66,19 @@ for pdf in pdf_files:
             if t:
                 full_text += t + "\n"
         
-        # Separación inteligente en bloques de 350 caracteres con superposición
-        lines = [line.strip() for line in full_text.split("\n") if line.strip()]
+        # Fragmentación por bloques de 600 caracteres
+        clean_text = re.sub(r'\s+', ' ', full_text).strip()
+        words = clean_text.split(" ")
+        
         current_chunk = []
         current_len = 0
-        for line in lines:
-            current_chunk.append(line)
-            current_len += len(line)
-            if current_len >= 350:
+        for word in words:
+            current_chunk.append(word)
+            current_len += len(word) + 1
+            if current_len >= 500:
                 chunks.append(" ".join(current_chunk))
-                current_chunk = current_chunk[-2:]  # Mantiene solapamiento de 2 líneas
-                current_len = sum(len(l) for l in current_chunk)
+                current_chunk = current_chunk[-15:]  # Solapamiento suave
+                current_len = sum(len(w) + 1 for w in current_chunk)
         if current_chunk:
             chunks.append(" ".join(current_chunk))
     except Exception as e:
@@ -88,7 +89,6 @@ if not chunks:
 
 print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
 
-# Diccionario de equivalencias y sinónimos para el lenguaje del Subte
 SYNONYMS = {
     "prender": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando", "bateria", "disyuntor", "preparacion"],
     "prendido": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando"],
@@ -99,13 +99,12 @@ SYNONYMS = {
     "escalera": ["escalera", "evacuacion", "emergencia"]
 }
 
-def search_relevant_chunks(query, top_k=4):
+def search_relevant_chunks(query, top_k=5):
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
     keywords = [w for w in words if w not in stopwords and len(w) > 2]
 
-    # Expandir palabras clave con sinónimos
     expanded_keywords = set(keywords)
     for kw in keywords:
         if kw in SYNONYMS:
@@ -146,7 +145,6 @@ def search_relevant_image(query, history=None):
     query_norm = normalize_text(query)
     all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
 
-    # Detección de preguntas generales sobre imágenes cargadas
     if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes"]):
         return {"type": "GENERAL_QUERY", "image": None, "models": [], "all_titles": all_titles}
 
@@ -249,19 +247,19 @@ def limpiar_redundancia(texto):
     return "\n".join(lineas_limpias)
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
-    # 1. Coincidencia exacta con imagen -> Devolver la descripción del JSON directo
+    if not GROQ_API_KEY:
+        return "- Error: No se ha configurado la clave GROQ_API_KEY en las variables de entorno de Render.", None
+
     if search_result and search_result.get("type") == "EXACT":
         img_info = search_result["image"]
         descripcion_directa = img_info.get('descripcion', '')
         if descripcion_directa:
             return limpiar_redundancia(descripcion_directa), None
 
-    # 2. Ambigüedad de modelos -> Preguntar directamente al usuario
     if search_result and search_result.get("type") == "AMBIGUOUS":
         models_str = " o ".join(search_result["models"])
         return f"- Tengo información registrada para {models_str}.\n- Por favor, indicame de qué modelo necesitas la consulta (por ejemplo: 'matafuego Mitsubishi' o 'matafuego CAF 6000').", None
 
-    # 3. Pregunta general sobre imágenes
     if search_result and search_result.get("type") == "GENERAL_QUERY":
         titles = search_result.get("all_titles", [])
         if titles:
@@ -270,8 +268,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         else:
             return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
 
-    # 4. Búsqueda estricta en los manuales PDF
-    relevant_context = search_relevant_chunks(user_prompt, top_k=4)
+    relevant_context = search_relevant_chunks(user_prompt, top_k=5)
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
@@ -311,13 +308,17 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         "messages": messages,
         "temperature": 0.0
     }
-    response = requests.post(url, json=payload, headers=headers, timeout=30)
-    if response.status_code == 200:
-        raw_text = response.json()['choices'][0]['message']['content']
-        return limpiar_redundancia(raw_text), None
-    else:
-        err = response.json().get('error', {}).get('message', 'Error en la consulta')
-        return None, f"⚠️ Error {response.status_code}: {err}"
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 200:
+            raw_text = response.json()['choices'][0]['message']['content']
+            return limpiar_redundancia(raw_text), None
+        else:
+            err = response.json().get('error', {}).get('message', 'Error en la consulta')
+            return f"- Error desde Groq ({response.status_code}): {err}", None
+    except Exception as e:
+        return f"- Error de conexión con el servicio de IA: {str(e)}", None
 
 # --- ENDPOINT PARA BASE44 (CHAT) ---
 @app.route('/preguntar', methods=['POST'])
@@ -331,8 +332,9 @@ def api_preguntar():
 
     search_result = search_relevant_image(pregunta, history=historial)
     respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
+    
     if error:
-        return jsonify({'error': error}), 500
+        respuesta_texto = f"- No fue posible procesar la consulta: {error}"
 
     filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
     filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
@@ -353,7 +355,7 @@ def api_preguntar():
         'imagen_url': imagen_url
     })
 
-# --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES CON LA VOZ DE PACO ---
+# --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES ---
 @app.route('/generar-audio', methods=['POST'])
 def api_generar_audio():
     data = request.get_json(silent=True) or {}
@@ -402,10 +404,7 @@ def handle_voice_message(message):
             return
 
         search_result = search_relevant_image(transcribed_text)
-        respuesta_texto, error = query_groq_llm(transcribed_text, search_result=search_result)
-        if error:
-            bot.reply_to(message, error)
-            return
+        respuesta_texto, _ = query_groq_llm(transcribed_text, search_result=search_result)
 
         bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
 
@@ -436,10 +435,7 @@ def handle_text_message(message):
         bot.send_chat_action(message.chat.id, 'typing')
         
         search_result = search_relevant_image(message.text)
-        respuesta_texto, error = query_groq_llm(message.text, search_result=search_result)
-        if error:
-            bot.reply_to(message, error)
-            return
+        respuesta_texto, _ = query_groq_llm(message.text, search_result=search_result)
 
         bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
 
