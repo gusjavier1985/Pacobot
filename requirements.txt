@@ -4,4 +4,4 @@ edge-tts
 requests
 flask
 flask-cors
-
+gunicorn
