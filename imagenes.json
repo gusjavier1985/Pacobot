@@ -200,5 +200,29 @@
     ],
     "archivo": "13_APAGAR_UNA_FORMACION_CAF_6000.jpg",
     "descripcion": "- Inversora adelante\n- Conectar freno de estacionamiento\n- Desconectar los equipos en forma automática o manual\n- Desconectar llave de toma de mando (A.T.P)\n- Desconectar batería\n- Centrar inversora\n- NOTA: Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento."
+  },
+  {
+    "titulo": "DISTRIBUCIÓN DE PUERTAS, LADOS Y COCHES",
+    "modelo": "CAF 6000",
+    "palabras_clave": [
+      "lado 1",
+      "lado 2",
+      "puertas",
+      "puerta 1",
+      "puerta 2",
+      "puerta 3",
+      "puerta 4",
+      "puerta 5",
+      "puerta 6",
+      "puerta 7",
+      "puerta 8",
+      "punta rosas",
+      "punta alem",
+      "numeracion de coches",
+      "coches 1 al 6",
+      "esquema coche"
+    ],
+    "archivo": "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg",
+    "descripcion": "- Lado 1: Puertas impares (1, 3, 5, 7).\n- Lado 2: Puertas pares (2, 4, 6, 8).\n- Orientación: Punta Rosas (cabecera izquierda) y Punta Alem (cabecera derecha).\n- Numeración de la formación: Coches numerados del 1 al 6."
   }
 ]
