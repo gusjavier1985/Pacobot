@@ -133,20 +133,20 @@ def search_relevant_image(query, history=None):
             break
 
     if not json_path:
-        return {"type": "NONE", "image": None, "models": [], "all_titles": []}
+        return {"type": "NONE", "image": None, "images": [], "models": [], "all_titles": []}
     
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             images_db = json.load(f)
     except Exception as e:
         print(f"Error leyendo {json_path}: {e}")
-        return {"type": "NONE", "image": None, "models": [], "all_titles": []}
+        return {"type": "NONE", "image": None, "images": [], "models": [], "all_titles": []}
 
     query_norm = normalize_text(query)
     all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
 
     if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes"]):
-        return {"type": "GENERAL_QUERY", "image": None, "models": [], "all_titles": all_titles}
+        return {"type": "GENERAL_QUERY", "image": None, "images": [], "models": [], "all_titles": all_titles}
 
     model_keywords = {
         "Mitsubishi": ["mitsubishi", "mitsu", "japones", "japonesa"],
@@ -182,26 +182,28 @@ def search_relevant_image(query, history=None):
             matches.append((score, item))
 
     if not matches:
-        return {"type": "NONE", "image": None, "models": [], "all_titles": all_titles}
+        return {"type": "NONE", "image": None, "images": [], "models": [], "all_titles": all_titles}
 
     matches.sort(key=lambda x: x[0], reverse=True)
     max_score = matches[0][0]
     best_matches = [m[1] for m in matches if m[0] == max_score]
 
+    if requested_model:
+        filtered = [item for item in best_matches if normalize_text(item.get("modelo", "")) == normalize_text(requested_model)]
+        if not filtered:
+            filtered = [m[1] for m in matches if normalize_text(m[1].get("modelo", "")) == normalize_text(requested_model)]
+        if filtered:
+            best_matches = filtered
+
     available_models = list(set(item.get("modelo", "General") for item in best_matches))
 
-    if requested_model:
-        model_match = next((item for item in best_matches if normalize_text(item.get("modelo", "")) == normalize_text(requested_model)), None)
-        if not model_match:
-            model_match = next((m[1] for m in matches if normalize_text(m[1].get("modelo", "")) == normalize_text(requested_model)), None)
-        
-        if model_match:
-            return {"type": "EXACT", "image": model_match, "models": [requested_model], "all_titles": all_titles}
-
     if len(available_models) > 1 and not requested_model:
-        return {"type": "AMBIGUOUS", "image": None, "models": available_models, "all_titles": all_titles}
+        return {"type": "AMBIGUOUS", "image": None, "images": [], "models": available_models, "all_titles": all_titles}
 
-    return {"type": "EXACT", "image": best_matches[0], "models": available_models, "all_titles": all_titles}
+    if len(best_matches) > 1:
+        return {"type": "MULTIPLE", "image": best_matches[0], "images": best_matches, "models": available_models, "all_titles": all_titles}
+
+    return {"type": "EXACT", "image": best_matches[0], "images": best_matches, "models": available_models, "all_titles": all_titles}
 
 def generate_voice_file(text, output_file):
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
@@ -250,11 +252,22 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     if not GROQ_API_KEY:
         return "- Error: No se ha configurado la clave GROQ_API_KEY en las variables de entorno de Render.", None
 
-    if search_result and search_result.get("type") == "EXACT":
-        img_info = search_result["image"]
-        descripcion_directa = img_info.get('descripcion', '')
-        if descripcion_directa:
-            return limpiar_redundancia(descripcion_directa), None
+    if search_result and search_result.get("type") in ["EXACT", "MULTIPLE"]:
+        images_found = search_result.get("images", [])
+        if not images_found and search_result.get("image"):
+            images_found = [search_result["image"]]
+        
+        if len(images_found) == 1:
+            desc = images_found[0].get('descripcion', '')
+            if desc:
+                return limpiar_redundancia(desc), None
+        elif len(images_found) > 1:
+            textos = []
+            for img in images_found:
+                tit = img.get('titulo', '')
+                desc = img.get('descripcion', '')
+                textos.append(f"**{tit}**\n{desc}")
+            return "\n\n".join([limpiar_redundancia(t) for t in textos]), None
 
     if search_result and search_result.get("type") == "AMBIGUOUS":
         models_str = " o ".join(search_result["models"])
@@ -331,8 +344,53 @@ def api_preguntar():
         return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
 
     search_result = search_relevant_image(pregunta, history=historial)
+    host_url = request.host_url.rstrip('/')
+    if host_url.startswith("http://"):
+        host_url = host_url.replace("http://", "https://", 1)
+
+    images_found = search_result.get("images", [])
+    if not images_found and search_result.get("image"):
+        images_found = [search_result["image"]]
+
+    # Si se encontraron una o más fichas de imágenes
+    if search_result.get("type") in ["EXACT", "MULTIPLE"] and images_found:
+        respuestas_lista = []
+        textos_combinados = []
+        
+        for img in images_found:
+            desc = limpiar_redundancia(img.get('descripcion', ''))
+            titulo = img.get('titulo', '')
+            texto_item = f"**{titulo}**\n{desc}" if len(images_found) > 1 else desc
+            textos_combinados.append(texto_item)
+            
+            # Generar audio individual para cada ficha
+            fn_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
+            fp_audio = os.path.join(AUDIO_DIR, fn_audio)
+            generate_voice_file(desc, fp_audio)
+            
+            respuestas_lista.append({
+                'titulo': titulo,
+                'respuesta_texto': desc,
+                'audio_url': f"{host_url}/audio/{fn_audio}",
+                'imagen_url': f"{host_url}/images/{img.get('archivo')}" if img.get('archivo') else None
+            })
+        
+        # Audio y texto combinado para mantener compatibilidad
+        texto_gen = "\n\n".join(textos_combinados)
+        fn_audio_gen = f"audio_{uuid.uuid4().hex[:8]}.mp3"
+        fp_audio_gen = os.path.join(AUDIO_DIR, fn_audio_gen)
+        generate_voice_file(texto_gen, fp_audio_gen)
+        
+        return jsonify({
+            'respuesta_texto': texto_gen,
+            'audio_url': f"{host_url}/audio/{fn_audio_gen}",
+            'imagen_url': respuestas_lista[0]['imagen_url'],
+            'imagenes_urls': [r['imagen_url'] for r in respuestas_lista if r['imagen_url']],
+            'respuestas': respuestas_lista
+        })
+
+    # Consulta por RAG / LLM normal
     respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
-    
     if error:
         respuesta_texto = f"- No fue posible procesar la consulta: {error}"
 
@@ -340,19 +398,18 @@ def api_preguntar():
     filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
     generate_voice_file(respuesta_texto, filepath_audio)
 
-    host_url = request.host_url.rstrip('/')
-    if host_url.startswith("http://"):
-        host_url = host_url.replace("http://", "https://", 1)
-
     audio_url = f"{host_url}/audio/{filename_audio}"
-    imagen_url = None
-    if search_result.get("type") == "EXACT" and search_result.get("image"):
-        imagen_url = f"{host_url}/images/{search_result['image'].get('archivo')}"
 
     return jsonify({
         'respuesta_texto': respuesta_texto,
         'audio_url': audio_url,
-        'imagen_url': imagen_url
+        'imagen_url': None,
+        'imagenes_urls': [],
+        'respuestas': [{
+            'respuesta_texto': respuesta_texto,
+            'audio_url': audio_url,
+            'imagen_url': None
+        }]
     })
 
 # --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES ---
@@ -404,27 +461,48 @@ def handle_voice_message(message):
             return
 
         search_result = search_relevant_image(transcribed_text)
-        respuesta_texto, _ = query_groq_llm(transcribed_text, search_result=search_result)
+        
+        images_found = search_result.get("images", [])
+        if not images_found and search_result.get("image"):
+            images_found = [search_result["image"]]
 
-        bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
+        if search_result.get("type") in ["EXACT", "MULTIPLE"] and images_found:
+            for img_info in images_found:
+                desc = limpiar_redundancia(img_info.get('descripcion', ''))
+                titulo = img_info.get('titulo', '')
+                msg_text = f"**{titulo}**\n{desc}" if len(images_found) > 1 else desc
+                
+                bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{msg_text}", parse_mode="Markdown")
 
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            img_path = os.path.join(IMAGE_DIR, img_info.get('archivo'))
-            if os.path.exists(img_path):
-                with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', 'Imagen de referencia')}")
+                img_path = os.path.join(IMAGE_DIR, img_info.get('archivo', ''))
+                if os.path.exists(img_path):
+                    with open(img_path, "rb") as photo:
+                        bot.send_photo(message.chat.id, photo, caption=f"📸 {titulo}")
 
-        bot.send_chat_action(message.chat.id, 'record_audio')
-        filename = f"resp_{message.message_id}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        generate_voice_file(respuesta_texto, filepath)
+                bot.send_chat_action(message.chat.id, 'record_audio')
+                filename = f"resp_{message.message_id}_{uuid.uuid4().hex[:4]}.mp3"
+                filepath = os.path.join(AUDIO_DIR, filename)
+                generate_voice_file(desc, filepath)
 
-        with open(filepath, "rb") as audio:
-            bot.send_voice(message.chat.id, audio)
+                with open(filepath, "rb") as audio:
+                    bot.send_voice(message.chat.id, audio)
 
-        if os.path.exists(filepath):
-            os.remove(filepath)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+        else:
+            respuesta_texto, _ = query_groq_llm(transcribed_text, search_result=search_result)
+            bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
+
+            bot.send_chat_action(message.chat.id, 'record_audio')
+            filename = f"resp_{message.message_id}.mp3"
+            filepath = os.path.join(AUDIO_DIR, filename)
+            generate_voice_file(respuesta_texto, filepath)
+
+            with open(filepath, "rb") as audio:
+                bot.send_voice(message.chat.id, audio)
+
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error procesando nota de voz: {str(e)}")
@@ -435,27 +513,48 @@ def handle_text_message(message):
         bot.send_chat_action(message.chat.id, 'typing')
         
         search_result = search_relevant_image(message.text)
-        respuesta_texto, _ = query_groq_llm(message.text, search_result=search_result)
+        
+        images_found = search_result.get("images", [])
+        if not images_found and search_result.get("image"):
+            images_found = [search_result["image"]]
 
-        bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
+        if search_result.get("type") in ["EXACT", "MULTIPLE"] and images_found:
+            for img_info in images_found:
+                desc = limpiar_redundancia(img_info.get('descripcion', ''))
+                titulo = img_info.get('titulo', '')
+                msg_text = f"**{titulo}**\n{desc}" if len(images_found) > 1 else desc
+                
+                bot.reply_to(message, msg_text, parse_mode="Markdown")
 
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            img_path = os.path.join(IMAGE_DIR, img_info.get('archivo'))
-            if os.path.exists(img_path):
-                with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', 'Imagen de referencia')}")
+                img_path = os.path.join(IMAGE_DIR, img_info.get('archivo', ''))
+                if os.path.exists(img_path):
+                    with open(img_path, "rb") as photo:
+                        bot.send_photo(message.chat.id, photo, caption=f"📸 {titulo}")
 
-        bot.send_chat_action(message.chat.id, 'record_audio')
-        filename = f"resp_{message.message_id}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        generate_voice_file(respuesta_texto, filepath)
+                bot.send_chat_action(message.chat.id, 'record_audio')
+                filename = f"resp_{message.message_id}_{uuid.uuid4().hex[:4]}.mp3"
+                filepath = os.path.join(AUDIO_DIR, filename)
+                generate_voice_file(desc, filepath)
 
-        with open(filepath, "rb") as audio:
-            bot.send_voice(message.chat.id, audio)
+                with open(filepath, "rb") as audio:
+                    bot.send_voice(message.chat.id, audio)
 
-        if os.path.exists(filepath):
-            os.remove(filepath)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+        else:
+            respuesta_texto, _ = query_groq_llm(message.text, search_result=search_result)
+            bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
+
+            bot.send_chat_action(message.chat.id, 'record_audio')
+            filename = f"resp_{message.message_id}.mp3"
+            filepath = os.path.join(AUDIO_DIR, filename)
+            generate_voice_file(respuesta_texto, filepath)
+
+            with open(filepath, "rb") as audio:
+                bot.send_voice(message.chat.id, audio)
+
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
