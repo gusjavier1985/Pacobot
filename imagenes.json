@@ -9,7 +9,8 @@
       "puesta en marcha",
       "inicializacion",
       "mac",
-      "freno de estacionamiento"
+      "freno de estacionamiento",
+      "prender"
     ],
     "archivo": "1_ENCENDER_UNA_FORMACION_CAF_6000.jpg",
     "descripcion": "- Inversora adelante\n- Conectar batería\n- Conectar llave de toma de mando (A.T.P)\n- Esperar la inicialización del MAC\n- Conectar los equipos en forma automática o manual\n- Conectar disyuntores\n- Desconectar freno de estacionamiento\n- NOTA: Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento."
@@ -19,6 +20,8 @@
     "modelo": "CAF 6000",
     "palabras_clave": [
       "coche frenado",
+      "coche frenado por unidad de freno",
+      "por unidad de freno",
       "unidad de freno",
       "b-138",
       "b138",
@@ -35,7 +38,12 @@
     "titulo": "COCHE FRENADO - POR MICROCEF",
     "modelo": "CAF 6000",
     "palabras_clave": [
+      "coche frenado",
+      "coche frenado por microcef",
+      "por microcef",
       "microcef",
+      "micecef",
+      "por micecef",
       "33f1",
       "termica 33f1",
       "equipo antibloqueo",
@@ -99,6 +107,7 @@
     "palabras_clave": [
       "esquema",
       "ubicacion",
+      "ubicacion de elementos",
       "planos",
       "donde esta",
       "m par",
@@ -135,6 +144,7 @@
       "coche remolque",
       "panel neumatico remolque",
       "remolque",
+      "remolque neumatico",
       "b-115",
       "b-116",
       "b-119",
@@ -220,7 +230,8 @@
       "punta alem",
       "numeracion de coches",
       "coches 1 al 6",
-      "esquema coche"
+      "esquema coche",
+      "esquema de puertas"
     ],
     "archivo": "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg",
     "descripcion": "- Lado 1: Puertas impares (1, 3, 5, 7).\n- Lado 2: Puertas pares (2, 4, 6, 8).\n- Orientación: Punta Rosas (cabecera izquierda) y Punta Alem (cabecera derecha).\n- Numeración de la formación: Coches numerados del 1 al 6."
