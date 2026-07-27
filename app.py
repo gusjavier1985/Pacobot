@@ -191,7 +191,6 @@ def load_imagenes_json():
     return None
 
 def search_relevant_image(query, history=None):
-    # Si la consulta es sobre una falla o avería técnica, no devolvemos imagen por error de coincidencia
     if is_fault_query(query):
         return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
 
@@ -347,10 +346,12 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
 
     3. CERO MULETILLAS, CITAS O INTRODUCCIONES:
        - NUNCA uses frases como "Según el manual...", "De acuerdo a...", "Para solucionar el problema de...", "Recuerde verificar...", "Si te refieres a...".
-       - Ve DIRECTO a los pasos numerados del procedimiento.
+       - Ve DIRECTO al procedimiento.
 
-    4. FIDELIDAD ABSOLUTA Y PASOS COMPLETOS:
-       - Cuando el usuario elija "1" (Mitsubishi) o "2" (CAF 6000), o especifique el modelo en su mensaje, entrega el procedimiento EXACTO, TRANCRIPTO Y COMPLETO sin resumir nada.
+    4. RESPETO ABSOLUTO DEL FORMATO Y SIMBOLOGÍA ORIGINAL DEL MANUAL:
+       - MANTÉN EXACTAMENTE la viñeta o conector original del manual: si el texto tiene guiones (-), puntos de viñeta (•) o tildes (✓), DEBES USAR ESOS MISMOS SÍMBOLOS.
+       - NO conviertas automáticamente las viñetas en listas numeradas (1, 2, 3...).
+       - UTILIZA números ÚNICAMENTE si el manual original tiene los pasos explícitamente numerados.
 
     5. SI LA INFORMACIÓN NO EXISTE:
        - Si la consulta NO figura en los manuales ni en las imágenes, responde únicamente:
