@@ -2,238 +2,101 @@
   {
     "titulo": "ENCENDER UNA FORMACIÓN CAF 6000",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "encender",
-      "encendido",
-      "arrancar",
-      "puesta en marcha",
-      "inicializacion",
-      "mac",
-      "freno de estacionamiento",
-      "prender"
-    ],
+    "palabras_clave": ["encender", "encendido", "arrancar", "puesta en marcha", "inicializacion", "mac", "freno de estacionamiento", "prender"],
     "archivo": "1_ENCENDER_UNA_FORMACION_CAF_6000.jpg",
     "descripcion": "- Inversora adelante\n- Conectar batería\n- Conectar llave de toma de mando (A.T.P)\n- Esperar la inicialización del MAC\n- Conectar los equipos en forma automática o manual\n- Conectar disyuntores\n- Desconectar freno de estacionamiento\n- NOTA: Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento."
   },
   {
     "titulo": "COCHE FRENADO - POR UNIDAD DE FRENO",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "coche frenado",
-      "coche frenado por unidad de freno",
-      "por unidad de freno",
-      "unidad de freno",
-      "b-138",
-      "b138",
-      "l-2",
-      "l2",
-      "b-73",
-      "b73",
-      "liberar freno"
-    ],
+    "palabras_clave": ["coche frenado", "coche frenado por unidad de freno", "por unidad de freno", "unidad de freno", "b-138", "b138", "l-2", "l2", "b-73", "b73", "liberar freno"],
     "archivo": "2_COCHE_FRENADO_POR_UNIDAD_DE_FRENO.jpg",
     "descripcion": "- Por unidad de freno: Liberar freno del coche afectado\n- Coche motor: B-138 y L-2\n- Coche remolque: B-73\n- Continuar marcha normal."
   },
   {
     "titulo": "COCHE FRENADO - POR MICROCEF",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "coche frenado",
-      "coche frenado por microcef",
-      "por microcef",
-      "microcef",
-      "micecef",
-      "por micecef",
-      "33f1",
-      "termica 33f1",
-      "equipo antibloqueo",
-      "bypass de freno",
-      "bypass de traccion"
-    ],
+    "palabras_clave": ["coche frenado", "coche frenado por microcef", "por microcef", "microcef", "micecef", "por micecef", "33f1", "termica 33f1", "equipo antibloqueo", "bypass de freno", "bypass de traccion"],
     "archivo": "3_COCHE_FRENADO_POR_MICROCEF.jpg",
     "descripcion": "- En el coche afectado resetear térmica 'Equipo antibloqueo' (33F1)\n- Si no normaliza liberar freno del coche afectado (Coche motor: B-138 y L-2 / Coche remolque: B-73)\n- Continuar marcha normal pulsando Bypass de freno y Bypass de tracción."
   },
   {
     "titulo": "BOCINA TRABADA",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "bocina",
-      "bocina trabada",
-      "c-20",
-      "c20",
-      "grifo c-20",
-      "grifo c20",
-      "anular bocina",
-      "aislar bocina"
-    ],
+    "palabras_clave": ["bocina", "bocina trabada", "c-20", "c20", "grifo c-20", "grifo c20", "anular bocina", "aislar bocina"],
     "archivo": "4_BOCINA_TRABADA.jpg",
     "descripcion": "- Presionar y soltar repetidamente el pedal de la bocina a fin de que se destrabe.\n- Si no destraba posicionar el tren en una zona propicia para descender (pasillo de túnel o zona de cambios).\n- Si la presión de la cañería principal desciende de 8kg/cm2 y se frena, presionar bypass de freno para movilizar el tren.\n- Dirigirse al lado 1 del coche afectado (1 o 6) al panel neumático bajo piso; abrir la tapa y cerrar el grifo C-20.\n- Continuar viaje normal hasta completar la vuelta."
   },
   {
     "titulo": "BAJAR UN PANTÓGRAFO",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "pantografo",
-      "bajar pantografo",
-      "21f1",
-      "termica 21f1",
-      "d-20",
-      "d20",
-      "grifo d-20",
-      "mando pantografo"
-    ],
+    "palabras_clave": ["pantografo", "bajar pantografo", "21f1", "termica 21f1", "d-20", "d20", "grifo d-20", "mando pantografo"],
     "archivo": "5_BAJAR_UN_PANTOGRAFO.jpg",
     "descripcion": "- Dirigirse al coche par que tiene el pantógrafo que se necesita bajar.\n- En la cabina del coche desconectar la térmica 21F1 'Mando Pantógrafo' y cerrar el grifo D-20.\n- De ser posible continuar en forma normal hasta completar la vuelta."
   },
   {
     "titulo": "SECCIONAMIENTO NEUMÁTICO",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "seccionamiento",
-      "seccionamiento neumatico",
-      "b-117",
-      "b117",
-      "b-116",
-      "b116",
-      "perdida entre coches",
-      "acople"
-    ],
+    "palabras_clave": ["seccionamiento", "seccionamiento neumatico", "b-117", "b117", "b-116", "b116", "perdida entre coches", "acople"],
     "archivo": "6_SECCIONAMIENTO_NEUMATICO.jpg",
     "descripcion": "- Pérdida entre coches de una unidad (acople semipermanente): Cerrar grifos B-117 en el salón de los coches a ambos lados del acople.\n- Pérdida entre unidades (acople móvil): Cerrar grifos B-116 en el panel neumático de cabina a ambos lados del acople.\n- NOTA: Si el seccionamiento implicara aislar el último coche impar se deberá liberar el freno neumático del mismo (B-138 y L-2) y pulsar el bypass de freno."
   },
   {
     "titulo": "ESQUEMA DE UBICACIÓN DE ELEMENTOS",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "esquema",
-      "ubicacion",
-      "ubicacion de elementos",
-      "planos",
-      "donde esta",
-      "m par",
-      "m impar",
-      "remolque",
-      "lado 1",
-      "lado 2"
-    ],
+    "palabras_clave": ["esquema", "ubicacion", "ubicacion de elementos", "planos", "donde esta", "m par", "m impar", "remolque", "lado 1", "lado 2"],
     "archivo": "7_ESQUEMA_DE_UBICACION_DE_ELEMENTOS.jpg",
     "descripcion": "- Esquema de ubicación de elementos por coche (Motor Par, Remolque, Motor Impar).\n- Muestra distribución de Panel de Térmicos, Panel Neumático, Grifos B-117, B-73 y Panel Neumático bajo piso."
   },
   {
     "titulo": "PANEL NEUMÁTICO DE CABINA",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "panel neumatico cabina",
-      "panel de cabina",
-      "b-115",
-      "b-116",
-      "b-119",
-      "b-120",
-      "b-138",
-      "d-20",
-      "d-26",
-      "l-2"
-    ],
+    "palabras_clave": ["panel neumatico cabina", "panel de cabina", "b-115", "b-116", "b-119", "b-120", "b-138", "d-20", "d-26", "l-2"],
     "archivo": "8_PANEL_NEUMATICO_DE_CABINA.jpg",
     "descripcion": "- B-115: Distribuidor de Freno de Estacionamiento.\n- B-116: Llave de aislamiento de la tubería principal entre unidades.\n- B-119: Llave de aislamiento del circuito del freno de estacionamiento.\n- B-120: Llave de aislamiento para retirar el freno de estacionamiento con la bomba.\n- B-138: Llave de aislamiento para la primera unidad de freno.\n- D-20: Llave de aislamiento del circuito de pantógrafo.\n- D-26: Llave de aislamiento del motor-compresor auxiliar.\n- L-2: Llave de aislamiento para la segunda unidad de freno."
   },
   {
     "titulo": "PANEL NEUMÁTICO COCHE REMOLQUE",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "coche remolque",
-      "panel neumatico remolque",
-      "remolque",
-      "remolque neumatico",
-      "b-115",
-      "b-116",
-      "b-119",
-      "b-138",
-      "l-2"
-    ],
+    "palabras_clave": ["coche remolque", "panel neumatico remolque", "remolque", "remolque neumatico", "b-115", "b-116", "b-119", "b-138", "l-2"],
     "archivo": "9_PANEL_NEUMATICO_COCHE_REMOLQUE.jpg",
     "descripcion": "- B-115: Distribuidor de Freno de Estacionamiento.\n- B-116: Llave de aislamiento de la tubería principal entre unidades.\n- B-119: Llave de aislamiento del circuito del freno de estacionamiento.\n- B-138: Llave de aislamiento para la primera unidad de freno.\n- L-2: Llave de aislamiento para la segunda unidad de freno."
   },
   {
     "titulo": "B-115 DISTRIBUIDOR DEL FRENO DE ESTACIONAMIENTO",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "b-115",
-      "b115",
-      "distribuidor b-115",
-      "distribuidor b115",
-      "pulsador af",
-      "afloje manual",
-      "freno de estacionamiento"
-    ],
+    "palabras_clave": ["b-115", "b115", "distribuidor b-115", "distribuidor b115", "pulsador af", "afloje manual", "freno de estacionamiento"],
     "archivo": "10_B115_DISTRIBUIDOR_DEL_FRENO_DE_ESTACIONAMIENTO.jpg",
     "descripcion": "- Distribuidor de aire que canaliza el aire a presión para colocar o retirar el freno de estacionamiento de su coche.\n- PULSADOR 'AF': Al actuarlo, se pone en comunicación la tubería principal con la cámara del cilindro del freno de estacionamiento. Si hay aire a presión y no existe fuga, el muelle de frenado es recogido y se retira el freno."
   },
   {
     "titulo": "DETALLE DEL BOGIE Y ANILLA PARA RETIRAR EL FRENO DE ESTACIONAMIENTO",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "bogie",
-      "anilla",
-      "sirga",
-      "desanclaje",
-      "afloje manual bogie",
-      "retirar freno estacionamiento"
-    ],
+    "palabras_clave": ["bogie", "anilla", "sirga", "desanclaje", "afloje manual bogie", "retirar freno estacionamiento"],
     "archivo": "11_DETALLE_DEL_BOGIE_Y_ANILLA.jpg",
     "descripcion": "- Detalle del bogie y anilla metálica / sirga de tirado manual conectada al mecanismo del cilindro de freno.\n- Tirar firmemente de la anilla hasta escuchar el gatillazo mecánico de desanclaje."
   },
   {
     "titulo": "FORMACIÓN AFLOJA Y NO TRACCIONA (BYPASS DE TRACCIÓN APAGADO)",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "afloja y no tracciona",
-      "no tracciona",
-      "bypass de traccion",
-      "puertas abiertas",
-      "averia sicas",
-      "sicas",
-      "freno de estacionamiento aplicado"
-    ],
+    "palabras_clave": ["afloja y no tracciona", "no tracciona", "bypass de traccion", "puertas abiertas", "averia sicas", "sicas", "freno de estacionamiento aplicado"],
     "archivo": "12_FORMACION_AFLOJA_Y_NO_TRACCIONA.jpg",
     "descripcion": "- Puertas abiertas de salón y cabinas intermedias o desbloqueadas: Normalizar el inconveniente de puertas.\n- Avería de SICAS: Verificar condición normal del tren, pulsar Bypass de tracción y descender pasajeros en primer andén.\n- Freno de estacionamiento aplicado en un coche: Pulsar saliente izquierda del B-115, cerrar B-73, retirar freno con sirgas en ambos bogies y normalizar B-73.\n- NOTA: Antes de presionar Bypass de tracción, VERIFICAR QUE LAS PUERTAS ESTÉN CERRADAS."
   },
   {
     "titulo": "APAGAR UNA FORMACIÓN CAF 6000",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "apagar",
-      "apagado",
-      "desconectar",
-      "apagar formacion",
-      "reseteo"
-    ],
+    "palabras_clave": ["apagar", "apagado", "desconectar", "apagar formacion", "reseteo"],
     "archivo": "13_APAGAR_UNA_FORMACION_CAF_6000.jpg",
     "descripcion": "- Inversora adelante\n- Conectar freno de estacionamiento\n- Desconectar los equipos en forma automática o manual\n- Desconectar llave de toma de mando (A.T.P)\n- Desconectar batería\n- Centrar inversora\n- NOTA: Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento."
   },
   {
     "titulo": "DISTRIBUCIÓN DE PUERTAS, LADOS Y COCHES",
     "modelo": "CAF 6000",
-    "palabras_clave": [
-      "lado 1",
-      "lado 2",
-      "puertas",
-      "puerta 1",
-      "puerta 2",
-      "puerta 3",
-      "puerta 4",
-      "puerta 5",
-      "puerta 6",
-      "puerta 7",
-      "puerta 8",
-      "punta rosas",
-      "punta alem",
-      "esquema de puertas"
-    ],
+    "palabras_clave": ["lado 1", "lado 2", "puertas", "puerta 1", "puerta 2", "puerta 3", "puerta 4", "puerta 5", "puerta 6", "puerta 7", "puerta 8", "punta rosas", "punta alem", "esquema de puertas"],
     "archivo": "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg",
     "descripcion": "- Lado 1: Puertas impares (1, 3, 5, 7).\n- Lado 2: Puertas pares (2, 4, 6, 8).\n- Orientación: Punta Rosas (cabecera izquierda) y Punta Alem (cabecera derecha).\n- Numeración de la formación: Coches numerados del 1 al 6."
   },
-[
   {
     "titulo": "Extinguidor de incendios",
     "modelo": "Mitsubishi",
@@ -323,7 +186,7 @@
     "modelo": "Mitsubishi",
     "palabras_clave": ["voltimetro de alta tension", "voltimetro alta", "linea", "600v", "650v", "vcc", "mitsubishi", "mitsu"],
     "archivo": "mitsu_13_voltimetro_alta_tension.jpg",
-    "descripcion": "- Indica la tensión existente en la línea.\n- Normalmente debe presentar valores entre 600 y 650 Vcc."
+    "descripcion": "- Indica la tensión existente en la línea.\n- Normally debe presentar valores entre 600 y 650 Vcc."
   },
   {
     "titulo": "Voltímetro de baja tensión",
@@ -564,4 +427,3 @@
     "descripcion": "- Con la manija de freno en posición Emergencia, accionar la llave de Reset ubicada en el Armario de NFB.\n- El MPI (Módulo Principal de Informaciones) quedará apagado durante aproximadamente 15 segundos y luego se encenderá nuevamente."
   }
 ]
-
