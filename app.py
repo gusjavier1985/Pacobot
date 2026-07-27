@@ -56,7 +56,7 @@ def check_direct_intents(query):
     """Detecta directamente saludos y preguntas sobre el origen del nombre PACO."""
     q_norm = normalize_text(query)
     
-    # 1. Respuesta al origen del nombre PACO
+    # Respuesta al origen del nombre PACO
     paco_patterns = [
         "por que paco", "porque paco", "por que te llamas paco", 
         "porque te llamas paco", "que significa paco", "de donde viene paco", 
@@ -65,11 +65,10 @@ def check_direct_intents(query):
     if any(p in q_norm for p in paco_patterns):
         return "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
 
-    # 2. Respuestas a saludos simples
+    # Respuestas a saludos simples
     saludos = ["hola", "buen dia", "buenos dias", "buenas tardes", "buenas noches", "buenas", "saludos", "hola paco", "que tal"]
     words = q_norm.split()
     
-    # Comprobar si es un saludo y no contiene palabras clave de averías o componentes
     es_saludo = q_norm in saludos or (len(words) <= 3 and any(w in saludos for w in words))
     tiene_palabras_tecnicas = any(k in q_norm for k in [
         "puerta", "freno", "tren", "atp", "sicas", "manual", "imagen", "foto", 
@@ -111,10 +110,10 @@ for pdf in pdf_files:
         for word in words:
             current_chunk.append(word)
             current_len += len(word) + 1
-            if current_len >= 1200:  # Bloques amplios para preservar procedimientos completos
+            if current_len >= 1200:
                 chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
                 chunks.append(chunk_str)
-                current_chunk = current_chunk[-30:]  # Overlap para no cortar contextos
+                current_chunk = current_chunk[-30:]
                 current_len = sum(len(w) + 1 for w in current_chunk)
         if current_chunk:
             chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
@@ -242,7 +241,7 @@ def search_relevant_image(query, history=None):
     }
 
 def generate_voice_file(text, output_file):
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
+    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "").replace("•", "")
     if not clean_text.strip():
         return False
 
@@ -261,7 +260,24 @@ def generate_voice_file(text, output_file):
         return False
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
-    # 0. Verificación de respuestas directas (Saludos / Nombre PACO)
+    # Detección de respuestas numéricas ("1" o "2") derivadas de una pregunta previa
+    clean_user_input = user_prompt.strip()
+    if clean_user_input in ["1", "2"] and history and len(history) >= 2:
+        last_assistant_msg = ""
+        last_user_msg = ""
+        for msg in reversed(history):
+            if isinstance(msg, dict):
+                if msg.get("role") == "assistant" and not last_assistant_msg:
+                    last_assistant_msg = msg.get("content", "")
+                elif msg.get("role") == "user" and not last_user_msg and msg.get("content", "").strip() not in ["1", "2"]:
+                    last_user_msg = msg.get("content", "")
+            if last_assistant_msg and last_user_msg:
+                break
+        
+        if "Para el Mitsubishi enviar 1" in last_assistant_msg or "enviar 1" in last_assistant_msg:
+            model_choice = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
+            user_prompt = f"{last_user_msg} para {model_choice}"
+
     direct_response = check_direct_intents(user_prompt)
     if direct_response:
         return direct_response, None
@@ -269,20 +285,19 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     if not GROQ_API_KEY:
         return "- Error: No se ha configurado la clave GROQ_API_KEY en Render.", None
 
-    # Respuesta si coincide exactamente con una imagen (se entrega la descripción completa sin resumir)
     if search_result and search_result.get("type") == "EXACT" and search_result.get("image"):
         desc = search_result["image"].get('descripcion', '')
         if desc:
             return desc, None
 
     if search_result and search_result.get("type") == "AMBIGUOUS_OPTIONS":
-        opciones_str = "\n".join([f"- **{opt}**" for opt in search_result.get("options", [])])
-        return f"- Para esa consulta tengo las siguientes opciones disponibles:\n\n{opciones_str}\n\n- ¿Cuál de las opciones necesitás?", None
+        opciones_str = "\n".join([f"• {opt}" for opt in search_result.get("options", [])])
+        return f"Para esa consulta tengo las siguientes opciones disponibles:\n\n{opciones_str}\n\n¿Cuál de las opciones necesitás?", None
 
     if search_result and search_result.get("type") == "GENERAL_QUERY":
         titles = search_result.get("all_titles", [])
         if titles:
-            lista_str = "\n".join([f"- {t}" for t in titles])
+            lista_str = "\n".join([f"• {t}" for t in titles])
             return f"Sí, tengo las siguientes imágenes técnicas cargadas en el sistema:\n\n{lista_str}\n\nPuedes preguntarme por cualquiera de ellas para ver la ubicación o detalles.", None
         else:
             return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
@@ -292,23 +307,28 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte (Línea B).
 
-    REGLAS OBLIGATORIAS DE RESPUESTA:
+    REGLAS DE ORO OBLIGATORIAS:
 
-    1. SALUDOS: Si el usuario te saluda, responde amistosamente y pregunta: "¿En qué te puedo ayudar hoy?".
-    2. NOMBRE: Si te preguntan por qué te llamas PACO, responde exactamente:
-       "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
+    1. DESAMBIGUACIÓN ENTRE FORMACIONES (MITSUBISHI vs CAF 6000):
+       - Si la consulta (ej: "puertas no abren", "tren no arranca", "freno", "batería", etc.) aplica a AMBOS modelos Y EL USUARIO NO ESPECIFICÓ A CUÁL SE REFIERE, debes responder ÚNICAMENTE con este formato exacto:
+         Si te referís a la consulta:
+         • Para el Mitsubishi enviar 1
+         • Para el CAF 6000 enviar 2
+
+    2. CERO MULETILLAS, CERO CITAS Y CERO RELLENO CONVERSACIONAL:
+       - PROHIBIDO usar frases como "Según el manual...", "De acuerdo a la Ficha Visual...", "Según la documentación...", "Recuerde verificar...", "Es importante tener en cuenta...", "Para la formación Mitsubishi, el procedimiento es...".
+       - Ve DIRECTO al procedimiento o solución técnica. 
+       - Comienza directamente con los pasos numerados o las instrucciones puntuales.
+
     3. FIDELIDAD ABSOLUTA Y SIN RESUMIR:
-       - Responde TRANSCRIBIENDO O EXPLICANDO COMPLETAMENTE la información presente en los manuales provistos.
-       - NO RESUMAS, NO SINTETICES, NO OMITAS PASOS NI DETALLES TÉCNICOS. La respuesta debe ser 100% exacta y confiable.
-    4. DUPLICIDAD Y AMBIGÜEDAD ENTRE FORMACIONES (CAF 6000 vs MITSUBISHI):
-       - La Línea B opera con formaciones CAF 6000 y Mitsubishi.
-       - Si la consulta del usuario trata sobre una avería o procedimiento que existe en AMBOS manuales (ejemplo: "puertas no abren", "puertas no cierran", "tren no arranca", "freno", "compresor", etc.) Y EL USUARIO NO ESPECIFICÓ LA FORMACIÓN:
-         NO entregues los procedimientos mezclados ni elijas una formación al azar.
-         Responde PREGUNTANDO A CUÁL FORMACIÓN SE REFIERE.
-         Ejemplo exacto de respuesta: "Esa consulta aplica para ambas formaciones. ¿Te referís al procedimiento para la formación Mitsubishi o para la formación CAF 6000?"
-       - Si el usuario aclara la formación (o si la consulta trata sobre un componente exclusivo de un modelo, como SICAS/MICROCEF en CAF 6000 o NFB/ATP en Mitsubishi), entrega el procedimiento exacto y completo de dicha formación.
-    5. SI NO FIGURA EN LOS MANUALES:
-       - Si la consulta NO figura claramente en la información provista, responde únicamente:
+       - Si el usuario especificó la formación o la consulta aplica a un solo modelo, entrega el procedimiento EXACTO Y COMPLETO sin omitir pasos, sin inventar nada y sin resumir información técnica.
+
+    4. SALUDOS Y NOMBRE:
+       - Saludos simples ("hola", "buen día", etc.): "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
+       - Preguntas sobre tu nombre ("por qué te llamas Paco", "de dónde viene Paco"): "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
+
+    5. SI LA INFORMACIÓN NO EXISTE:
+       - Si la consulta NO figura en los manuales ni en las imágenes, responde únicamente:
          "- No dispongo de la información exacta para esa consulta en los manuales ni en las imágenes cargadas."
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE DE LOS MANUALES:
