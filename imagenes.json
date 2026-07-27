@@ -232,5 +232,336 @@
     ],
     "archivo": "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg",
     "descripcion": "- Lado 1: Puertas impares (1, 3, 5, 7).\n- Lado 2: Puertas pares (2, 4, 6, 8).\n- Orientación: Punta Rosas (cabecera izquierda) y Punta Alem (cabecera derecha).\n- Numeración de la formación: Coches numerados del 1 al 6."
+  },
+[
+  {
+    "titulo": "Extinguidor de incendios",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["extinguidor", "extintor", "matafuego", "fuego", "incendio", "extinguidores", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_01_extinguidor.jpg",
+    "descripcion": "- En los coches sin cabina existen dos extinguidores (uno en cada extremo).\n- En los coches con cabina entera, ½ cabina y ½ cabina reformada el extinguidor se encuentra alojado en la misma."
+  },
+  {
+    "titulo": "Escaleras de evacuación",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["escalera", "escaleras", "evacuacion", "emergencia", "asiento", "autoadhesivo", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_02_escaleras.jpg",
+    "descripcion": "- Cada coche de la formación se encuentra provisto de 1 escalera de emergencia.\n- Ubicada debajo de uno de los asientos del coche e identificada mediante un autoadhesivo."
+  },
+  {
+    "titulo": "Emergencia acústica",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["emergencia acustica", "alarma sonora", "boton rojo", "boton negro", "normalizar emergencia", "acrilico", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_03_emergencia_acustica.jpg",
+    "descripcion": "- Dos compartimientos por coche para el accionamiento de la emergencia acústica.\n- Romper acrílico para accionar botón rojo: produce alarma sonora en salón y cabinas e identifica el nº de coche.\n- Al costado posee un botón negro (protegido por tapa) para normalizar la emergencia."
+  },
+  {
+    "titulo": "Emergencia de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["emergencia de puertas", "emergencia puertas", "perdida de aire", "motores de puertas", "acrilico", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_04_emergencia_puertas.jpg",
+    "descripcion": "- Dos compartimientos por coche para accionar la emergencia de puertas.\n- Romper acrílico y accionar botón: produce pérdida de aire en todos los motores de puertas de ese lado en el coche y activa alarma sonora en salón y cabinas (identificando el nº de coche)."
+  },
+  {
+    "titulo": "Probador de tensión",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["probador de tension", "tension", "tercer riel", "bastones", "arco voltaico", "armario", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_05_probador_tension.jpg",
+    "descripcion": "- En coches Mitsubishi se encuentra dentro del armario (posee dos bastones, uno con botón de verificación de funcionamiento).\n- Procedimiento: colocar un extremo en el hongo del riel y el opuesto en el hongo del tercer riel de manera firme y rápida para evitar arco voltaico.\n- Si emite sonido hay presencia de tensión."
+  },
+  {
+    "titulo": "Esquema de distribución de los elementos de seguridad",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["esquema de distribucion", "elementos de seguridad", "plano de seguridad", "ubicacion seguridad", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_06_esquema_seguridad.jpg",
+    "descripcion": "- Esquema de distribución de los elementos de seguridad en la formación Mitsubishi."
+  },
+  {
+    "titulo": "Manómetro doble",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["manometro doble", "manometro", "sap", "bp", "tubo de aire directo", "tubo de freno", "presion", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_07_manometro_doble.jpg",
+    "descripcion": "- Aguja negra: indica la presión del tubo de aire directo (SAP).\n- Aguja roja: indica la presión en el tubo de freno (BP)."
+  },
+  {
+    "titulo": "Velocímetro",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["velocimetro", "velocidad", "kmh", "mpi", "atp", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_08_velocimetro.jpg",
+    "descripcion": "- Indica la velocidad desarrollada por la formación en Km/h.\n- En condiciones normales considerar como referencia el valor brindado por el MPI del ATP."
+  },
+  {
+    "titulo": "Control de marcha",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de marcha", "arbol de marcha", "arbol de inversion", "hombre muerto", "palanca de marcha", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_09_control_marcha.jpg",
+    "descripcion": "- Compuesto por el Árbol de marcha y el Árbol de inversión.\n- El árbol de marcha está dotado de un dispositivo de 'Hombre muerto' que debe permanecer presionado permanentemente; al ser liberado produce la aplicación de los frenos de emergencia."
+  },
+  {
+    "titulo": "Control de freno (ME42)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de freno", "me42", "freno me42", "frenado neumatico", "frenado dinamico", "manija de freno", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_10_control_freno_me42.jpg",
+    "descripcion": "- Comanda la serie de válvulas y contactos eléctricos del frenado mediante los cuales se realizan las operaciones de frenado neumático y dinámico."
+  },
+  {
+    "titulo": "Luz de aviso al conductor",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luz de aviso", "luz de aviso al conductor", "puertas cerradas", "bp", "nfb luz de aviso", "conmutador de direccion", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_11_luz_aviso_conductor.jpg",
+    "descripcion": "- Indica mediante su encendido que están dadas todas las condiciones para iniciar la marcha (puertas cerradas, aire en el BP, NFB de luz de aviso y conmutador de dirección en posición correcta)."
+  },
+  {
+    "titulo": "Amperímetro",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["amperimetro", "corriente", "motores de traccion", "frenado electrodinamico", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_12_amperimetro.jpg",
+    "descripcion": "- Indica la intensidad de corriente que circula por los motores de tracción en la tracción y en el frenado electrodinámico de ese coche."
+  },
+  {
+    "titulo": "Voltímetro de alta tensión",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["voltimetro de alta tension", "voltimetro alta", "linea", "600v", "650v", "vcc", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_13_voltimetro_alta_tension.jpg",
+    "descripcion": "- Indica la tensión existente en la línea.\n- Normalmente debe presentar valores entre 600 y 650 Vcc."
+  },
+  {
+    "titulo": "Voltímetro de baja tensión",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["voltimetro de baja tension", "voltimetro baja", "bateria", "baterias", "motoalternador", "36v", "38v", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_14_voltimetro_baja_tension.jpg",
+    "descripcion": "- Indica la tensión de baterías y al arrancar el motoalternador la tensión que entrega este.\n- Su valor oscila entre 36 y 38 Vcc."
+  },
+  {
+    "titulo": "Luces indicadoras",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luces indicadoras", "indicadores luminosos", "panel lateral izquierdo", "indicadores blancos", "indicadores de color", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_15_luces_indicadoras.jpg",
+    "descripcion": "- Ubicadas sobre el panel lateral izquierdo en coches con cabina y ½ cabina.\n- Brindan información del estado operacional del coche (indicadores blancos) y de la formación (indicadores de color)."
+  },
+  {
+    "titulo": "Dispositivo de paratren ( caja de control )",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["dispositivo de paratren", "caja de control paratren", "paratren", "led verde", "led rojo", "boton de reposicion", "reponer paratren", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_16_dispositivo_paratren.jpg",
+    "descripcion": "- Ubicado sobre el panel izquierdo. Posee LED verde (paratren normal), LED rojo (paratren aplicado) y botón de reposición.\n- Ante una aplicación de paratren se produce frenado de emergencia y encendido del LED rojo.\n- Procedimiento: colocar manija de control de freno en emergencia, reponer paratren con el pulsador y dar aviso al PCO."
+  },
+  {
+    "titulo": "Luz indicadora de alarma",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luz indicadora de alarma", "alarma", "emergencia acustica", "emergencia de puertas", "silenciar alarma", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_17_luz_indicadora_alarma.jpg",
+    "descripcion": "- Indica mediante aviso acústico e indicador luminoso el número de coche en el que fue accionada la emergencia acústica o de puertas.\n- Posee un botón para silenciar la alarma sonora dentro de la cabina, permaneciendo el número de coche encendido hasta la normalización en el lugar."
+  },
+  {
+    "titulo": "Interruptor de control CT (Anulado)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["interruptor de control ct", "control ct", "ct anulado", "circuito de control", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_18_interruptor_control_ct.jpg",
+    "descripcion": "- Habilita el circuito de control.\n- Su posición normal es hacia arriba."
+  },
+  {
+    "titulo": "Botón de reset del OLR",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["reset del olr", "reset olr", "olr", "automatico de sobrecarga", "reposicion olr", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_19_boton_reset_olr.jpg",
+    "descripcion": "- Utilizado para la reposición del automático de sobrecarga (OLR).\n- Alojado en el mismo compartimiento del interruptor de control CT."
+  },
+  {
+    "titulo": "NFB de Cabina (ubicación)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["nfb de cabina", "nfb cabina", "ubicacion nfb", "termicas", "llaves termicas", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_20_nfb_cabina.jpg",
+    "descripcion": "- Ubicación de los NFB de cabina en coches Mitsubishi."
+  },
+  {
+    "titulo": "Armario lateral",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["armario lateral", "armario cabina", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_21_armario_lateral.jpg",
+    "descripcion": "- Armario lateral de cabina en coches Mitsubishi."
+  },
+  {
+    "titulo": "Interruptor de enclavamiento",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["interruptor de enclavamiento", "enclavamiento", "enclavamiento de puertas", "maniobra", "puerta abierta", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_22_interruptor_enclavamiento.jpg",
+    "descripcion": "- Habilita un sistema de seguridad que no permite tener maniobra si alguna puerta de la formación está abierta."
+  },
+  {
+    "titulo": "Emergencia de cabina",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["emergencia de cabina", "soga de emergencia", "freno de emergencia", "soga", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_23_emergencia_cabina.jpg",
+    "descripcion": "- Se acciona tirando de una soga y produce la aplicación del freno de emergencia.\n- La soga indica la aplicación mediante una marca existente para tal fin (la soga supera la marca).\n- Ubicada a ambos lados de la cabina."
+  },
+  {
+    "titulo": "Control de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de puertas", "interruptor de puertas", "apertura de puertas", "cierre de puertas", "llave de puertas", "temporizado", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_24_control_puertas.jpg",
+    "descripcion": "- Interruptor para el accionamiento de apertura y cierre de puertas (requiere llave para habilitar).\n- Habilitado el sistema temporizado, al comandar el cierre se activa la alarma sonora y tras 3 segundos se produce el cierre de puertas."
+  },
+  {
+    "titulo": "Temporizado de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["temporizado de puertas", "temporizador de puertas", "armario de nfbs", "llave metalica", "anulacion alarma acustica", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_25_temporizado_puertas.jpg",
+    "descripcion": "- Ubicado en el armario de NFBs, comanda el cierre de puertas luego del tiempo preestablecido.\n- Dotado de llave metálica tipo perilla para la anulación de la alarma acústica (únicamente en caso de averías según normativa)."
+  },
+  {
+    "titulo": "Llave de conmutación de cierre de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["llave de conmutacion", "conmutacion de cierre de puertas", "conmutador de direccion", "habilitado temporizado", "posicion vertical", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_26_llave_conmutacion_cierre_puertas.jpg",
+    "descripcion": "- Ubicada junto al conmutador de dirección; comanda la habilitación o deshabilitación del sistema temporizado de puertas.\n- Posición normal: habilitado (posición vertical)."
+  },
+  {
+    "titulo": "Control de puertas para el conductor (sin habilitar)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de puertas para el conductor", "conmutadores de dos posiciones", "puertas conductor", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_27_control_puertas_conductor.jpg",
+    "descripcion": "- A ambos lados del control de marcha se encuentran los conmutadores de dos posiciones para la apertura y cierre de puertas correspondientes a cada lado de la formación."
+  },
+  {
+    "titulo": "Interruptor de cortocircuito de cierre de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["interruptor de cortocircuito", "cierre de puertas", "spd", "cuchillas inversoras", "anulacion spd", "5 kmh", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_28_interruptor_cortocircuito_cierre_puertas.jpg",
+    "descripcion": "- Posee dos cuchillas inversoras (una por lado). Hacia abajo habilitan el circuito del control de velocidad (SPD), impidiendo abrir puertas a más de 5 km/h.\n- Para anular SPD: subir el interruptor del lado correspondiente (la tapa de acceso no podrá cerrarse)."
+  },
+  {
+    "titulo": "Conmutador de dirección",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["conmutador de direccion", "direccion", "cabina delantera", "cabina trasera", "cabina media", "conmutador neutro", "flecha", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_29_conmutador_direccion.jpg",
+    "descripcion": "- Cierra el circuito de enclavamiento de puertas e identifica cabinas:\n- Conmutador Delantero: flecha señala hacia el conductor.\n- Conmutador Trasero: flecha señala hacia el lado opuesto al conductor.\n- Conmutador Neutro: flecha señala hacia atrás e identifica cabina media."
+  },
+  {
+    "titulo": "Llave de modalidad CMC - CL",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["llave de modalidad", "cmc", "cl", "conduccion manual controlada", "conduccion limitada", "control maestro", "trabamiento", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_30_llave_modalidad_cmc_cl.jpg",
+    "descripcion": "- Ubicada a la izquierda del control maestro, permite seleccionar entre modalidad CMC y CL.\n- Posee trabamiento de seguridad: debe ser presionada hacia adentro para su accionamiento."
+  },
+  {
+    "titulo": "MPI (Modulo Principal de Informaciones)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["mpi", "modulo principal de informaciones", "atp de abordo", "manometros", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_31_mpi.jpg",
+    "descripcion": "- Ubicado sobre los manómetros. Brinda las informaciones necesarias para la operación de la formación con ATP de Abordo."
+  },
+  {
+    "titulo": "Botón de arranque",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["boton de arranque", "pulsador azul", "telefono", "aflojar el tren", "detencion", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_32_boton_arranque.jpg",
+    "descripcion": "- Pulsador de color azul ubicado debajo del teléfono.\n- Debe ser presionado toda vez que la formación se detenga antes de proceder a aflojar el tren."
+  },
+  {
+    "titulo": "Llave de A.L y Llave de reset",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["llave de al", "llave de reset", "aislado limitado", "reset atp", "5 segundos", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_33_llave_al_llave_reset.jpg",
+    "descripcion": "- Llave de AL (Aislado Limitado): conmuta el ATP de Abordo a la modalidad AL.\n- Llave de Reset: efectúa un Reset al ATP mediante giro en el sentido de las agujas del reloj (mantener accionada al menos 5 segundos)."
+  },
+  {
+    "titulo": "Grifos de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["grifos de puertas", "grifo general de puertas", "grifos individuales de puertas", "motor de puertas", "ventanita", "grifo rojo", "serie 900", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_34_grifos_puertas.jpg",
+    "descripcion": "- Grifo general: debajo de 1 asiento en la punta A lado 1.\n- Grifos individuales: debajo de los asientos cerca de puertas, junto al motor de puertas (grifo rojo en ventanita). Produce pérdida de aire del par de puertas y traba la ventanita.\n- Serie 900: manómetros debajo de asiento central lado 1 y grifo de puertas en punta B lado 1."
+  },
+  {
+    "titulo": "Motor de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["motor de puertas", "motor puertas", "mecanismo puertas", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_35_motor_puertas.jpg",
+    "descripcion": "- Motor de puertas en coches Mitsubishi."
+  },
+  {
+    "titulo": "Luces indicadoras superiores",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luces indicadoras superiores", "luz roja", "luz blanca", "luz amarilla", "desconexion olr", "emergencia acustica", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_36_luces_indicadoras_superiores.jpg",
+    "descripcion": "- Tres luces indicadoras en cada lateral superior:\n- Luz roja: Puertas abiertas.\n- Luz blanca: Desconexión de automático (OLR).\n- Luz amarilla: Emergencia acústica activada."
+  },
+  {
+    "titulo": "Grifo interruptor",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["grifo interruptor", "sincronismos", "cabeza de acople", "sap", "bp", "serie 300", "serie 900", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_37_grifo_interruptor.jpg",
+    "descripcion": "- Foto 1: Interrumpe sincronismos eléctricos y neumáticos de la cabeza de acople (palanca apuntando hacia el acoplador interrumpe circuitos).\n- Foto 2: En series 300 y 900 se utilizan grifos neumáticos para corte de SAP y BP en lugar de grifos interruptores."
+  },
+  {
+    "titulo": "Electroválvulas de emergencia (EMV1 y EMV2)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["electrovalvulas de emergencia", "emv1", "emv2", "cañeria bp", "freno de emergencia", "atp de abordo", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_38_electrovalvulas_emergencia.jpg",
+    "descripcion": "- Producen pérdida en la cañería del BP desencadenando freno de emergencia:\n- EMV1: Relacionada con emergencias (se alimenta al activarse).\n- EMV2: Relacionada con ATP de Abordo (normalmente alimentada; si se corta la alimentación, libera aire del BP)."
+  },
+  {
+    "titulo": "Dispositivo de accionamiento A1",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["dispositivo de accionamiento a1", "accionamiento a1", "a1", "valvula desaire de bogies", "palanca roja", "freno de seguridad", "grifo verde", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_39_dispositivo_accionamiento_a1.jpg",
+    "descripcion": "- Válvulas encargadas del frenado y aflojamiento del coche.\n- Incluye válvula de desaire de bogies (palanca roja) para anular bogies.\n- Provisto de freno de seguridad: para liberarlo usar el grifo verde (enciende luz indicadora al estar activado)."
+  },
+  {
+    "titulo": "Caja controladora del MG",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["caja controladora del mg", "caja controladora mg", "motogenerador", "relay de puesta en marcha", "protecciones mg", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_40_caja_controladora_mg.jpg",
+    "descripcion": "- Alojamiento de protecciones y relay de puesta en marcha del Motogenerador (MG)."
+  },
+  {
+    "titulo": "MPI (Modulo Principal de Informaciones)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["mpi cabina", "modulo principal de informaciones cabina", "velocidad objetivo", "modo de conduccion", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_41_mpi_cabina.jpg",
+    "descripcion": "- MPI en la cabina de conducción: visualiza velocidad objetivo, velocidad de la formación, modo de conducción, corte de maniobra y aplicación de frenado."
+  },
+  {
+    "titulo": "Modo de operación CMC (Conducción Manual Controlada)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["modo cmc", "conduccion manual controlada", "modo de operacion cmc", "atp de abordo", "velocidad objetivo", "velocidad permitida", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_42_modo_cmc.jpg",
+    "descripcion": "- Modo normal de conducción con funciones de seguridad garantizadas por ATP DE ABORDO.\n- Posicionar llave de modalidad en CMC (presionar hacia adentro para destrabar).\n- El equipo calcula la velocidad permitida/objetivo y comanda corte de tracción y freno."
+  },
+  {
+    "titulo": "Modo de operación CL (Conducción Limitada)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["modo cl", "conduccion limitada", "modo de operacion cl", "10 kmh", "falla de antena", "circuito de via", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_43_modo_cl.jpg",
+    "descripcion": "- Seguridad garantizada por el Conductor (uso ante falla de antena receptora, transmisor de vía u ocupación de circuito).\n- Velocidad permitida y objetivo fijada en 10 km/h independientemente de las señales de vía."
+  },
+  {
+    "titulo": "Modo de operación AL (Aislado Limitado)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["modo al", "aislado limitado", "modo de operacion al", "25 kmh", "conmutador precintado", "limitador de propulsion", "pco", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_44_modo_al.jpg",
+    "descripcion": "- Modo de aislamiento parcial ante falla del equipamiento de abordo (no actúa sobre el freno del tren).\n- Tracción supervisada por Limitador de Propulsión a 25 km/h max.\n- Requiere orden expresa del Supervisor de PCO/CTC para accionar conmutador precintado en armario de NFBs."
+  },
+  {
+    "titulo": "Detección y gestión de falla del ATP de Abordo",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["deteccion de falla atp", "falla atp", "gestion de falla atp", "luz de diagnosticos", "codigo de falla", "codigo de rutina", "c1", "c2", "mpi", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_45_deteccion_falla_atp.jpg",
+    "descripcion": "- Falla indicada en MPI por luz de Diagnósticos y aplicación de freno de emergencia.\n- Para identificar tipo de falla: mantener presionados simultáneamente ambos botones del MPI. El display mostrará C1, Código de falla, C2 y Código de rutina."
+  },
+  {
+    "titulo": "MPI (Modulo Principal de Informaciones) sus funciones",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["mpi funciones", "funciones mpi", "indicadores mpi", "diagrama de barra", "prueba de lamparas", "mitsubishi", "mitsu"],
+    "archivo": "mitsu_46_mpi_funciones.jpg",
+    "descripcion": "- Interfaz ATP con el conductor:\n1- Indicador verde 'CMC'\n2- Indicador verde 'CL'\n3- Indicador amarillo 'Tracción'\n4- Indicador amarillo 'Freno'\n5- Indicador rojo 'Diagnóstico de fallas'\n6- Indicador rojo 'Velocidad objetivo Km/h'\n7- Indicador punto 'Velocidad permitida'\n8- Velocidad real (numérico y diagrama de barras)\n9- Botones de intensidad / prueba de lámparas."
+  },
+  {
+    "titulo": "Reseteo ATP a bordo",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["reseteo atp a bordo", "reset atp", "reseteo atp", "llave de reset", "armario de nfb", "15 segundos", "mitsubishi", "mitsu"],
+    "archivo": null,
+    "descripcion": "- Con la manija de freno en posición Emergencia, accionar la llave de Reset ubicada en el Armario de NFB.\n- El MPI (Módulo Principal de Informaciones) quedará apagado durante aproximadamente 15 segundos y luego se encenderá nuevamente."
   }
 ]
+
