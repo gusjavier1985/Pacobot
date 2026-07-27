@@ -53,10 +53,10 @@ def normalize_text(text):
     return text.lower().strip()
 
 def check_direct_intents(query):
-    """Detecta directamente saludos y preguntas sobre el origen del nombre PACO."""
+    """Detecta únicamente saludos puros y preguntas sobre el origen del nombre PACO."""
     q_norm = normalize_text(query)
     
-    # Respuesta al origen del nombre PACO
+    # 1. Respuesta al origen del nombre PACO
     paco_patterns = [
         "por que paco", "porque paco", "por que te llamas paco", 
         "porque te llamas paco", "que significa paco", "de donde viene paco", 
@@ -65,17 +65,13 @@ def check_direct_intents(query):
     if any(p in q_norm for p in paco_patterns):
         return "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
 
-    # Respuestas a saludos simples
+    # 2. Saludos puros (Solo si el mensaje es exclusivamente un saludo sin consulta técnica)
     saludos = ["hola", "buen dia", "buenos dias", "buenas tardes", "buenas noches", "buenas", "saludos", "hola paco", "que tal"]
     words = q_norm.split()
     
-    es_saludo = q_norm in saludos or (len(words) <= 3 and any(w in saludos for w in words))
-    tiene_palabras_tecnicas = any(k in q_norm for k in [
-        "puerta", "freno", "tren", "atp", "sicas", "manual", "imagen", "foto", 
-        "bateria", "bocina", "pantografo", "compresor", "averia", "falla", "grifo", "seccionar"
-    ])
+    es_saludo_puro = q_norm in saludos or (len(words) <= 2 and any(w in saludos for w in words))
     
-    if es_saludo and not tiene_palabras_tecnicas:
+    if es_saludo_puro:
         return "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
 
     return None
@@ -260,7 +256,7 @@ def generate_voice_file(text, output_file):
         return False
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
-    # Detección de respuestas numéricas ("1" o "2") derivadas de una pregunta previa
+    # Detección y transformación de respuestas "1" o "2" según la consulta previa
     clean_user_input = user_prompt.strip()
     if clean_user_input in ["1", "2"] and history and len(history) >= 2:
         last_assistant_msg = ""
@@ -276,7 +272,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         
         if "Para el Mitsubishi enviar 1" in last_assistant_msg or "enviar 1" in last_assistant_msg:
             model_choice = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
-            user_prompt = f"{last_user_msg} para {model_choice}"
+            user_prompt = f"Procedimiento para {last_user_msg} en la formación {model_choice}"
 
     direct_response = check_direct_intents(user_prompt)
     if direct_response:
@@ -309,23 +305,26 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
 
     REGLAS DE ORO OBLIGATORIAS:
 
-    1. DESAMBIGUACIÓN ENTRE FORMACIONES (MITSUBISHI vs CAF 6000):
-       - Si la consulta (ej: "puertas no abren", "tren no arranca", "freno", "batería", etc.) aplica a AMBOS modelos Y EL USUARIO NO ESPECIFICÓ A CUÁL SE REFIERE, debes responder ÚNICAMENTE con este formato exacto:
+    1. CERO SALUDOS EN RESPUESTAS TÉCNICAS:
+       - PROHIBIDO comenzar respuestas con "¡Hola!", "Buen día", "Buenas tardes" ni "¿En qué te puedo ayudar hoy?".
+       - NO agregues cortesías iniciales ni finales. Ve DIRECTO al contenido técnico.
+
+    2. REGULARIZACIÓN DE OPCIONES DE FORMACIÓN:
+       - Si la consulta (ejemplo: "puertas no abren", "tren no arranca", "freno", "batería", etc.) aplica a AMBAS formaciones (Mitsubishi y CAF 6000) Y EL USUARIO NO ESPECIFICÓ EL MODELO:
+         Debes responder EXCLUSIVAMENTE con el siguiente texto y NADA MÁS:
+
          Si te referís a la consulta:
          • Para el Mitsubishi enviar 1
          • Para el CAF 6000 enviar 2
 
-    2. CERO MULETILLAS, CERO CITAS Y CERO RELLENO CONVERSACIONAL:
-       - PROHIBIDO usar frases como "Según el manual...", "De acuerdo a la Ficha Visual...", "Según la documentación...", "Recuerde verificar...", "Es importante tener en cuenta...", "Para la formación Mitsubishi, el procedimiento es...".
-       - Ve DIRECTO al procedimiento o solución técnica. 
-       - Comienza directamente con los pasos numerados o las instrucciones puntuales.
+       - QUEDA ESTRICTAMENTE PROHIBIDO DAR EXPLICACIONES, PASOS O PROCEDIMIENTOS EN ESTE MENSAJE. Solo debes enviar las opciones 1 y 2.
 
-    3. FIDELIDAD ABSOLUTA Y SIN RESUMIR:
-       - Si el usuario especificó la formación o la consulta aplica a un solo modelo, entrega el procedimiento EXACTO Y COMPLETO sin omitir pasos, sin inventar nada y sin resumir información técnica.
+    3. CERO MULETILLAS, CITAS O INTRODUCCIONES:
+       - NUNCA uses frases como "Según el manual...", "De acuerdo a...", "Para solucionar el problema de...", "Recuerde verificar...", "Si te refieres a...".
+       - Ve DIRECTO a los pasos numerados del procedimiento.
 
-    4. SALUDOS Y NOMBRE:
-       - Saludos simples ("hola", "buen día", etc.): "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
-       - Preguntas sobre tu nombre ("por qué te llamas Paco", "de dónde viene Paco"): "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
+    4. FIDELIDAD ABSOLUTA Y PASOS COMPLETOS:
+       - Cuando el usuario elija "1" (Mitsubishi) o "2" (CAF 6000), o especifique el modelo en su mensaje, entrega el procedimiento EXACTO, TRANCRIPTO Y COMPLETO sin resumir nada.
 
     5. SI LA INFORMACIÓN NO EXISTE:
        - Si la consulta NO figura en los manuales ni en las imágenes, responde únicamente:
