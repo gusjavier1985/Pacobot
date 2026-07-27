@@ -53,12 +53,14 @@ def normalize_text(text):
     return text.lower().strip()
 
 def is_fault_query(query):
-    """Detecta si la consulta refiere a una falla o avería técnica operativa."""
+    """Detecta si la consulta refiere a una falla, avería técnica o punto de manual."""
     q_norm = normalize_text(query)
     fault_keywords = [
-        "no abre", "no abren", "no cierra", "no cierran", "falla", "averia",
+        "no abre", "no abren", "no cierra", "no cierran", "falla", "averia", "averias",
         "no arranca", "no carga", "trabada", "trabado", "frenado", "seccionar",
-        "no anda", "no funciona", "problema", "desperfecto", "no para", "no tracciona"
+        "no anda", "no funciona", "problema", "desperfecto", "no para", "no tracciona",
+        "luz de bo", "bo y olr", "luz bo", "olr", "bo", "bp no carga", "ausencia de velocidad",
+        "temporizador", "alarma sonora", "compresor"
     ]
     return any(kw in q_norm for kw in fault_keywords)
 
@@ -144,7 +146,7 @@ def search_relevant_chunks(query, top_k=8):
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
-    keywords = [w for w in words if w not in stopwords and len(w) > 2]
+    keywords = [w for w in words if w not in stopwords and len(w) > 1]
 
     target_model = None
     if any(m in query_norm for m in ["caf", "6000", "sicas", "microcef"]):
@@ -191,6 +193,7 @@ def load_imagenes_json():
     return None
 
 def search_relevant_image(query, history=None):
+    # Si la consulta es sobre averías/puntos de manual, forzamos omitir búsqueda de imágenes ambiguas
     if is_fault_query(query):
         return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
 
@@ -223,15 +226,21 @@ def search_relevant_image(query, history=None):
             raw_keywords = [raw_keywords]
             
         keywords = [normalize_text(kw) for kw in raw_keywords]
+        titulo_norm = normalize_text(item.get("titulo", ""))
+        
         score = 0
 
-        for kw in keywords:
-            if kw == query_norm:
-                score += 20
-            elif kw in query_norm:
-                score += len(kw) * 2
-            elif any(kw == w or (len(w) > 2 and (kw in w or w in kw)) for w in query_words):
-                score += 3
+        # Coincidencia exacta de título
+        if titulo_norm and titulo_norm == query_norm:
+            score += 50
+        else:
+            for kw in keywords:
+                if kw == query_norm:
+                    score += 20
+                elif kw in query_norm:
+                    score += len(kw) * 2
+                elif any(kw == w or (len(w) > 2 and (kw in w or w in kw)) for w in query_words):
+                    score += 3
 
         if score > 0:
             matches.append((score, item))
