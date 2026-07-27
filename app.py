@@ -313,25 +313,52 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         return f"- Error de conexión con el servicio de IA: {str(e)}", None
 
 # --- ENDPOINT PARA BASE44 (CHAT) ---
-@app.route('/preguntar', methods=['POST'])
+@app.route('/preguntar', methods=['POST', 'OPTIONS'])
 def api_preguntar():
-    data = request.get_json(silent=True) or {}
-    pregunta = data.get('pregunta', '')
-    historial = data.get('historial', [])
-    
-    if not pregunta:
-        return jsonify({'error': 'Debes enviar el campo "pregunta"'}), 400
+    if request.method == 'OPTIONS':
+        return '', 200
 
-    search_result = search_relevant_image(pregunta, history=historial)
-    host_url = request.host_url.rstrip('/')
-    if host_url.startswith("http://"):
-        host_url = host_url.replace("http://", "https://", 1)
-
-    # Si es coincidencia exacta con imagen
-    if search_result.get("type") == "EXACT" and search_result.get("image"):
-        img_info = search_result["image"]
-        respuesta_texto = limpiar_redundancia(img_info.get('descripcion', ''))
+    try:
+        data = request.get_json(silent=True) or {}
         
+        # Lee la consulta sin importar qué nombre de variable use el frontend
+        pregunta = data.get('pregunta') or data.get('message') or data.get('text') or data.get('query') or ''
+        historial = data.get('historial', [])
+        
+        if not pregunta:
+            return jsonify({
+                'respuesta_texto': '- Por favor escribí una consulta.',
+                'audio_url': None,
+                'imagen_url': None
+            }), 200
+
+        search_result = search_relevant_image(pregunta, history=historial)
+        host_url = request.host_url.rstrip('/')
+        if host_url.startswith("http://"):
+            host_url = host_url.replace("http://", "https://", 1)
+
+        # Si es coincidencia exacta con imagen
+        if search_result.get("type") == "EXACT" and search_result.get("image"):
+            img_info = search_result["image"]
+            respuesta_texto = limpiar_redundancia(img_info.get('descripcion', ''))
+            
+            filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
+            filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
+            
+            audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
+            audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
+
+            return jsonify({
+                'respuesta_texto': respuesta_texto,
+                'audio_url': audio_url,
+                'imagen_url': f"{host_url}/images/{img_info.get('archivo')}" if img_info.get('archivo') else None
+            }), 200
+
+        # Consulta con la IA / Manuales
+        respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
+        if error:
+            respuesta_texto = f"- No fue posible procesar la consulta: {error}"
+
         filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
         filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
         
@@ -341,25 +368,16 @@ def api_preguntar():
         return jsonify({
             'respuesta_texto': respuesta_texto,
             'audio_url': audio_url,
-            'imagen_url': f"{host_url}/images/{img_info.get('archivo')}" if img_info.get('archivo') else None
-        })
+            'imagen_url': None
+        }), 200
 
-    # Consulta con la IA / Manuales
-    respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
-    if error:
-        respuesta_texto = f"- No fue posible procesar la consulta: {error}"
-
-    filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
-    filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-    
-    audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
-    audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
-
-    return jsonify({
-        'respuesta_texto': respuesta_texto,
-        'audio_url': audio_url,
-        'imagen_url': None
-    })
+    except Exception as e:
+        print(f"Error crítico en /preguntar: {str(e)}")
+        return jsonify({
+            'respuesta_texto': f"- Error interno del servidor: {str(e)}",
+            'audio_url': None,
+            'imagen_url': None
+        }), 200
 
 # --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES ---
 @app.route('/generar-audio', methods=['POST'])
