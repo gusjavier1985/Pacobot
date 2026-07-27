@@ -1,571 +1,422 @@
-import os
-import glob
-import threading
-import requests
-import asyncio
-import re
-import uuid
-import json
-import unicodedata
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-import telebot
-from pypdf import PdfReader
-import edge_tts
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-AUDIO_DIR = os.path.join(BASE_DIR, "static_audio")
-IMAGE_DIR = os.path.join(BASE_DIR, "static_images")
-os.makedirs(AUDIO_DIR, exist_ok=True)
-os.makedirs(IMAGE_DIR, exist_ok=True)
-
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-@app.route('/', methods=['GET'])
-def health_check():
-    return "Bot Paco API OK", 200
-
-@app.route('/audio/<filename>', methods=['GET'])
-def get_audio(filename):
-    response = send_from_directory(AUDIO_DIR, filename)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
-
-@app.route('/images/<filename>', methods=['GET'])
-def get_image(filename):
-    response = send_from_directory(IMAGE_DIR, filename)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
-
-# Configuración y Credenciales
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
-def normalize_text(text):
-    """Remueve tildes, acentos y convierte a minúsculas."""
-    if not text:
-        return ""
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-    return text.lower().strip()
-
-def check_direct_intents(query):
-    """Detecta únicamente saludos puros y preguntas sobre el origen del nombre PACO."""
-    q_norm = normalize_text(query)
-    
-    # 1. Respuesta al origen del nombre PACO
-    paco_patterns = [
-        "por que paco", "porque paco", "por que te llamas paco", 
-        "porque te llamas paco", "que significa paco", "de donde viene paco", 
-        "por que el nombre paco", "porque el nombre paco", "quien es paco"
-    ]
-    if any(p in q_norm for p in paco_patterns):
-        return "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
-
-    # 2. Saludos puros (Solo si el mensaje es exclusivamente un saludo sin consulta técnica)
-    saludos = ["hola", "buen dia", "buenos dias", "buenas tardes", "buenas noches", "buenas", "saludos", "hola paco", "que tal"]
-    words = q_norm.split()
-    
-    es_saludo_puro = q_norm in saludos or (len(words) <= 2 and any(w in saludos for w in words))
-    
-    if es_saludo_puro:
-        return "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
-
-    return None
-
-# Indexación RAG etiquetando explícitamente el modelo de tren
-print("Indexando manuales técnicos completos...")
-chunks = []
-pdf_files = sorted(glob.glob(os.path.join(BASE_DIR, "*.pdf")))
-
-for pdf in pdf_files:
-    try:
-        filename_lower = os.path.basename(pdf).lower()
-        if "caf" in filename_lower:
-            model_tag = "CAF 6000"
-        elif "mitsu" in filename_lower:
-            model_tag = "Mitsubishi"
-        else:
-            model_tag = "General"
-
-        reader = PdfReader(pdf)
-        full_text = ""
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                full_text += t + "\n"
-        
-        clean_text = re.sub(r'\s+', ' ', full_text).strip()
-        words = clean_text.split(" ")
-        
-        current_chunk = []
-        current_len = 0
-        for word in words:
-            current_chunk.append(word)
-            current_len += len(word) + 1
-            if current_len >= 1200:
-                chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
-                chunks.append(chunk_str)
-                current_chunk = current_chunk[-30:]
-                current_len = sum(len(w) + 1 for w in current_chunk)
-        if current_chunk:
-            chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
-            chunks.append(chunk_str)
-    except Exception as e:
-        print(f"Error procesando {pdf}: {e}")
-
-if not chunks:
-    chunks = ["No hay manuales cargados en el sistema."]
-
-print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
-
-SYNONYMS = {
-    "prender": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando", "bateria", "disyuntor", "preparacion"],
-    "prendido": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando"],
-    "encender": ["encendido", "puesta en servicio", "energizacion", "mando"],
-    "grifo": ["llave", "grifo", "valvula", "aislar", "puerta"],
-    "matafuego": ["extintor", "matafuego", "fuego"],
-    "matafuegos": ["extintor", "matafuego", "fuego"],
-    "escalera": ["escalera", "evacuacion", "emergencia"]
-}
-
-def search_relevant_chunks(query, top_k=8):
-    stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
-    query_norm = normalize_text(query)
-    words = re.findall(r'\b\w+\b', query_norm)
-    keywords = [w for w in words if w not in stopwords and len(w) > 2]
-
-    target_model = None
-    if any(m in query_norm for m in ["caf", "6000", "sicas", "microcef"]):
-        target_model = "CAF 6000"
-    elif any(m in query_norm for m in ["mitsubishi", "mitsu", "nfb", "atp"]):
-        target_model = "Mitsubishi"
-
-    expanded_keywords = set(keywords)
-    for kw in keywords:
-        if kw in SYNONYMS:
-            expanded_keywords.update(SYNONYMS[kw])
-
-    scored_chunks = []
-    for chunk in chunks:
-        chunk_norm = normalize_text(chunk)
-        score = sum(1 for kw in expanded_keywords if kw in chunk_norm)
-        
-        if target_model:
-            if f"[modelo: {target_model.lower()}]" in chunk_norm:
-                score += 5
-            elif "[modelo: general]" not in chunk_norm:
-                score -= 3
-
-        if score > 0:
-            scored_chunks.append((score, chunk))
-
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
-    
-    relevant_text = ""
-    for score, chunk in scored_chunks[:top_k]:
-        relevant_text += f"\n{chunk}\n"
-
-    return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
-
-def load_imagenes_json():
-    for candidate in ["imagenes.json", "Imagenes.json", "IMAGENES.JSON"]:
-        json_path = os.path.join(BASE_DIR, candidate)
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error leyendo {json_path}: {e}")
-    return None
-
-def search_relevant_image(query, history=None):
-    images_db = load_imagenes_json()
-    if not images_db:
-        return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
-
-    query_norm = normalize_text(query)
-    all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
-
-    if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes", "hay imagenes"]):
-        return {"type": "GENERAL_QUERY", "image": None, "images": [], "options": [], "all_titles": all_titles}
-
-    # Detectar el modelo solicitado en la consulta
-    target_model = None
-    if any(m in query_norm for m in ["caf", "6000"]):
-        target_model = "CAF 6000"
-    elif any(m in query_norm for m in ["mitsubishi", "mitsu"]):
-        target_model = "Mitsubishi"
-
-    matches = []
-    query_words = set(re.findall(r'\b\w+\b', query_norm))
-
-    for item in images_db:
-        item_model = item.get("modelo", "")
-        # Si el usuario especificó un modelo y el elemento pertenece a otro, se omite
-        if target_model and item_model and item_model != target_model:
-            continue
-
-        raw_keywords = item.get("palabras_clave") or item.get("keywords") or item.get("tags") or []
-        if isinstance(raw_keywords, str):
-            raw_keywords = [raw_keywords]
-            
-        keywords = [normalize_text(kw) for kw in raw_keywords]
-        score = 0
-
-        for kw in keywords:
-            if kw == query_norm:
-                score += 20
-            elif kw in query_norm:
-                score += len(kw) * 2
-            elif any(kw == w or (len(w) > 2 and (kw in w or w in kw)) for w in query_words):
-                score += 3
-
-        if score > 0:
-            matches.append((score, item))
-
-    if not matches:
-        return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": all_titles}
-
-    matches.sort(key=lambda x: x[0], reverse=True)
-    max_score = matches[0][0]
-    top_matches = [m[1] for m in matches if m[0] == max_score]
-
-    if len(top_matches) > 1:
-        titles = [f"{item.get('titulo')} ({item.get('modelo')})" for item in top_matches]
-        return {
-            "type": "AMBIGUOUS_OPTIONS",
-            "image": None,
-            "images": [],
-            "options": titles,
-            "all_titles": all_titles
-        }
-
-    selected_image = top_matches[0]
-    return {
-        "type": "EXACT",
-        "image": selected_image,
-        "images": [selected_image],
-        "options": [],
-        "all_titles": all_titles
-    }
-
-def generate_voice_file(text, output_file):
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "").replace("•", "")
-    if not clean_text.strip():
-        return False
-
-    async def _generate():
-        communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
-        await communicate.save(output_file)
-    
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(asyncio.wait_for(_generate(), timeout=10.0))
-        loop.close()
-        return os.path.exists(output_file)
-    except Exception as e:
-        print(f"Error generando audio TTS: {e}")
-        return False
-
-def query_groq_llm(user_prompt, search_result=None, history=None):
-    # Detección y transformación de respuestas "1" o "2" según la consulta previa
-    clean_user_input = user_prompt.strip()
-    if clean_user_input in ["1", "2"] and history and len(history) >= 2:
-        last_assistant_msg = ""
-        last_user_msg = ""
-        for msg in reversed(history):
-            if isinstance(msg, dict):
-                if msg.get("role") == "assistant" and not last_assistant_msg:
-                    last_assistant_msg = msg.get("content", "")
-                elif msg.get("role") == "user" and not last_user_msg and msg.get("content", "").strip() not in ["1", "2"]:
-                    last_user_msg = msg.get("content", "")
-            if last_assistant_msg and last_user_msg:
-                break
-        
-        if "Para el Mitsubishi enviar 1" in last_assistant_msg or "enviar 1" in last_assistant_msg:
-            model_choice = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
-            user_prompt = f"Procedimiento para {last_user_msg} en la formación {model_choice}"
-
-    direct_response = check_direct_intents(user_prompt)
-    if direct_response:
-        return direct_response, None
-
-    if not GROQ_API_KEY:
-        return "- Error: No se ha configurado la clave GROQ_API_KEY en Render.", None
-
-    if search_result and search_result.get("type") == "EXACT" and search_result.get("image"):
-        desc = search_result["image"].get('descripcion', '')
-        if desc:
-            return desc, None
-
-    if search_result and search_result.get("type") == "AMBIGUOUS_OPTIONS":
-        opciones_str = "\n".join([f"• {opt}" for opt in search_result.get("options", [])])
-        return f"Para esa consulta tengo las siguientes opciones disponibles:\n\n{opciones_str}\n\n¿Cuál de las opciones necesitás?", None
-
-    if search_result and search_result.get("type") == "GENERAL_QUERY":
-        titles = search_result.get("all_titles", [])
-        if titles:
-            lista_str = "\n".join([f"• {t}" for t in titles])
-            return f"Sí, tengo las siguientes imágenes técnicas cargadas en el sistema:\n\n{lista_str}\n\nPuedes preguntarme por cualquiera de ellas para ver la ubicación o detalles.", None
-        else:
-            return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
-
-    relevant_context = search_relevant_chunks(user_prompt, top_k=8)
-
-    system_instruction = f"""
-    Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte (Línea B).
-
-    REGLAS DE ORO OBLIGATORIAS:
-
-    1. CERO SALUDOS EN RESPUESTAS TÉCNICAS:
-       - PROHIBIDO comenzar respuestas con "¡Hola!", "Buen día", "Buenas tardes" ni "¿En qué te puedo ayudar hoy?".
-       - NO agregues cortesías iniciales ni finales. Ve DIRECTO al contenido técnico.
-
-    2. REGULARIZACIÓN DE OPCIONES DE FORMACIÓN:
-       - Si la consulta (ejemplo: "puertas no abren", "tren no arranca", "freno", "batería", etc.) aplica a AMBAS formaciones (Mitsubishi y CAF 6000) Y EL USUARIO NO ESPECIFICÓ EL MODELO:
-         Debes responder EXCLUSIVAMENTE con el siguiente texto y NADA MÁS:
-
-         Si te referís a la consulta:
-         • Para el Mitsubishi enviar 1
-         • Para el CAF 6000 enviar 2
-
-       - QUEDA ESTRICTAMENTE PROHIBIDO DAR EXPLICACIONES, PASOS O PROCEDIMIENTOS EN ESTE MENSAJE. Solo debes enviar las opciones 1 y 2.
-
-    3. CERO MULETILLAS, CITAS O INTRODUCCIONES:
-       - NUNCA uses frases como "Según el manual...", "De acuerdo a...", "Para solucionar el problema de...", "Recuerde verificar...", "Si te refieres a...".
-       - Ve DIRECTO a los pasos numerados del procedimiento.
-
-    4. FIDELIDAD ABSOLUTA Y PASOS COMPLETOS:
-       - Cuando el usuario elija "1" (Mitsubishi) o "2" (CAF 6000), o especifique el modelo en su mensaje, entrega el procedimiento EXACTO, TRANCRIPTO Y COMPLETO sin resumir nada.
-
-    5. SI LA INFORMACIÓN NO EXISTE:
-       - Si la consulta NO figura en los manuales ni en las imágenes, responde únicamente:
-         "- No dispongo de la información exacta para esa consulta en los manuales ni en las imágenes cargadas."
-
-    INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE DE LOS MANUALES:
-    {relevant_context}
-    """
-
-    messages = [{"role": "system", "content": system_instruction}]
-
-    if history and isinstance(history, list):
-        clean_history = []
-        for msg in history[-6:]:
-            if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                clean_history.append({"role": msg["role"], "content": msg["content"]})
-        messages.extend(clean_history)
-
-    messages.append({"role": "user", "content": user_prompt})
-
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY.strip()}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "llama-3.1-8b-instant",
-        "messages": messages,
-        "temperature": 0.0
-    }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        if response.status_code == 200:
-            raw_text = response.json()['choices'][0]['message']['content']
-            return raw_text, None
-        else:
-            err = response.json().get('error', {}).get('message', 'Error en la consulta')
-            return f"- Error desde Groq ({response.status_code}): {err}", None
-    except Exception as e:
-        return f"- Error de conexión con el servicio de IA: {str(e)}", None
-
-# --- ENDPOINT PARA BASE44 (CHAT) ---
-@app.route('/preguntar', methods=['POST', 'OPTIONS'])
-def api_preguntar():
-    if request.method == 'OPTIONS':
-        return '', 200
-
-    try:
-        data = request.get_json(silent=True) or {}
-        pregunta = data.get('pregunta') or data.get('message') or data.get('text') or data.get('query') or ''
-        historial = data.get('historial', [])
-        
-        if not pregunta:
-            return jsonify({
-                'respuesta_texto': '- Por favor escribí una consulta.',
-                'audio_url': None,
-                'imagen_url': None
-            }), 200
-
-        search_result = search_relevant_image(pregunta, history=historial)
-        host_url = request.host_url.rstrip('/')
-        if host_url.startswith("http://"):
-            host_url = host_url.replace("http://", "https://", 1)
-
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            respuesta_texto = img_info.get('descripcion', '')
-            
-            filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
-            filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-            
-            audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
-            audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
-
-            archivo_nombre = img_info.get('archivo')
-            imagen_url = f"{host_url}/images/{archivo_nombre}" if archivo_nombre else None
-
-            return jsonify({
-                'respuesta_texto': respuesta_texto,
-                'audio_url': audio_url,
-                'imagen_url': imagen_url
-            }), 200
-
-        respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
-        if error:
-            respuesta_texto = f"- No fue posible procesar la consulta: {error}"
-
-        filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
-        filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-        
-        audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
-        audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
-
-        return jsonify({
-            'respuesta_texto': respuesta_texto,
-            'audio_url': audio_url,
-            'imagen_url': None
-        }), 200
-
-    except Exception as e:
-        print(f"Error crítico en /preguntar: {str(e)}")
-        return jsonify({
-            'respuesta_texto': f"- Error interno del servidor: {str(e)}",
-            'audio_url': None,
-            'imagen_url': None
-        }), 200
-
-# --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES ---
-@app.route('/generar-audio', methods=['POST'])
-def api_generar_audio():
-    data = request.get_json(silent=True) or {}
-    texto = data.get('texto', '')
-    
-    if not texto:
-        return jsonify({'error': 'Debes enviar el campo "texto"'}), 400
-
-    filename_audio = f"audio_nov_{uuid.uuid4().hex[:8]}.mp3"
-    filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-    audio_ok = generate_voice_file(texto, filepath_audio)
-
-    if not audio_ok:
-        return jsonify({'error': 'No se pudo generar el audio'}), 500
-
-    host_url = request.host_url.rstrip('/')
-    if host_url.startswith("http://"):
-        host_url = host_url.replace("http://", "https://", 1)
-
-    return jsonify({'audio_url': f"{host_url}/audio/{filename_audio}"})
-
-# --- MANEJADORES TELEGRAM ---
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te puedo ayudar hoy?", parse_mode="Markdown")
-
-@bot.message_handler(content_types=['voice'])
-def handle_voice_message(message):
-    try:
-        bot.send_chat_action(message.chat.id, 'typing')
-        file_info = bot.get_file(message.voice.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        
-        transcribe_url = "https://api.groq.com/openai/v1/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY.strip()}"}
-        files = {'file': ('voice.ogg', downloaded_file, 'audio/ogg')}
-        data = {'model': 'whisper-large-v3', 'language': 'es'}
-        
-        trans_resp = requests.post(transcribe_url, headers=headers, files=files, data=data, timeout=20)
-        if trans_resp.status_code != 200:
-            bot.reply_to(message, "⚠️ Error procesando nota de voz.")
-            return
-            
-        transcribed_text = trans_resp.json().get('text', '')
-        if not transcribed_text:
-            bot.reply_to(message, "⚠️ No logré escuchar con claridad el audio.")
-            return
-
-        search_result = search_relevant_image(transcribed_text)
-        respuesta_texto, _ = query_groq_llm(transcribed_text, search_result=search_result)
-
-        bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
-
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            archivo = img_info.get('archivo')
-            if archivo:
-                img_path = os.path.join(IMAGE_DIR, archivo)
-                if os.path.exists(img_path):
-                    with open(img_path, "rb") as photo:
-                        bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
-
-        filename = f"resp_{message.message_id}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        if generate_voice_file(respuesta_texto, filepath):
-            with open(filepath, "rb") as audio:
-                bot.send_voice(message.chat.id, audio)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Error procesando nota de voz: {str(e)}")
-
-@bot.message_handler(func=lambda message: True)
-def handle_text_message(message):
-    try:
-        bot.send_chat_action(message.chat.id, 'typing')
-        
-        search_result = search_relevant_image(message.text)
-        respuesta_texto, _ = query_groq_llm(message.text, search_result=search_result)
-
-        bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
-
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            archivo = img_info.get('archivo')
-            if archivo:
-                img_path = os.path.join(IMAGE_DIR, archivo)
-                if os.path.exists(img_path):
-                    with open(img_path, "rb") as photo:
-                        bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
-
-        filename = f"resp_{message.message_id}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        if generate_voice_file(respuesta_texto, filepath):
-            with open(filepath, "rb") as audio:
-                bot.send_voice(message.chat.id, audio)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Error: {str(e)}")
-
-# Inicio del Bot de Telegram en hilo secundario
-def run_telegram_bot():
-    try:
-        print("Iniciando Bot de Telegram...")
-        bot.polling(non_stop=True, timeout=30)
-    except Exception as e:
-        print(f"Error en hilo de Telegram: {e}")
-
-bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-bot_thread.start()
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    print(f"🤖 Paco API & Bot ejecutándose en el puerto {port}...")
-    app.run(host="0.0.0.0", port=port)
+[
+  {
+    "titulo": "ENCENDER UNA FORMACIÓN CAF 6000",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["encender caf", "encendido caf", "puesta en marcha caf", "inicializacion mac", "procedimiento encendido caf"],
+    "archivo": "1_ENCENDER_UNA_FORMACION_CAF_6000.jpg",
+    "descripcion": "- Inversora adelante\n- Conectar batería\n- Conectar llave de toma de mando (A.T.P)\n- Esperar la inicialización del MAC\n- Conectar los equipos en forma automática o manual\n- Conectar disyuntores\n- Desconectar freno de estacionamiento\n- NOTA: Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento."
+  },
+  {
+    "titulo": "COCHE FRENADO - POR UNIDAD DE FRENO",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["ubicacion b138", "ubicacion l2", "ubicacion b73", "grifo b138", "grifo l2", "grifo b73", "unidad de freno caf"],
+    "archivo": "2_COCHE_FRENADO_POR_UNIDAD_DE_FRENO.jpg",
+    "descripcion": "- Por unidad de freno: Liberar freno del coche afectado\n- Coche motor: B-138 y L-2\n- Coche remolque: B-73\n- Continuar marcha normal."
+  },
+  {
+    "titulo": "COCHE FRENADO - POR MICROCEF",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["termica 33f1", "33f1", "ubicacion 33f1", "equipo antibloqueo caf", "microcef"],
+    "archivo": "3_COCHE_FRENADO_POR_MICROCEF.jpg",
+    "descripcion": "- En el coche afectado resetear térmica 'Equipo antibloqueo' (33F1)\n- Si no normaliza liberar freno del coche afectado (Coche motor: B-138 y L-2 / Coche remolque: B-73)\n- Continuar marcha normal pulsando Bypass de freno y Bypass de tracción."
+  },
+  {
+    "titulo": "BOCINA TRABADA",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["c20", "grifo c20", "grifo c-20", "ubicacion c20", "panel bocina caf"],
+    "archivo": "4_BOCINA_TRABADA.jpg",
+    "descripcion": "- Presionar y soltar repetidamente el pedal de la bocina a fin de que se destrabe.\n- Si no destraba posicionar el tren en una zona propicia para descender (pasillo de túnel o zona de cambios).\n- Si la presión de la cañería principal desciende de 8kg/cm2 y se frena, presionar bypass de freno para movilizar el tren.\n- Dirigirse al lado 1 del coche afectado (1 o 6) al panel neumático bajo piso; abrir la tapa y cerrar el grifo C-20.\n- Continuar viaje normal hasta completar la vuelta."
+  },
+  {
+    "titulo": "BAJAR UN PANTÓGRAFO",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["termica 21f1", "21f1", "d20", "grifo d20", "grifo d-20", "mando pantografo caf"],
+    "archivo": "5_BAJAR_UN_PANTOGRAFO.jpg",
+    "descripcion": "- Dirigirse al coche par que tiene el pantógrafo que se necesita bajar.\n- En la cabina del coche desconectar la térmica 21F1 'Mando Pantógrafo' y cerrar el grifo D-20.\n- De ser posible continuar en forma normal hasta completar la vuelta."
+  },
+  {
+    "titulo": "SECCIONAMIENTO NEUMÁTICO",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["grifo b117", "grifo b116", "b117", "b116", "ubicacion b117", "ubicacion b116"],
+    "archivo": "6_SECCIONAMIENTO_NEUMATICO.jpg",
+    "descripcion": "- Pérdida entre coches de una unidad (acople semipermanente): Cerrar grifos B-117 en el salón de los coches a ambos lados del acople.\n- Pérdida entre unidades (acople móvil): Cerrar grifos B-116 en el panel neumático de cabina a ambos lados del acople.\n- NOTA: Si el seccionamiento implicara aislar el último coche impar se deberá liberar el freno neumático del mismo (B-138 y L-2) y pulsar el bypass de freno."
+  },
+  {
+    "titulo": "ESQUEMA DE UBICACIÓN DE ELEMENTOS",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["esquema elementos caf", "ubicacion de elementos caf", "plano caf", "distribucion de elementos caf", "motor par", "motor impar"],
+    "archivo": "7_ESQUEMA_DE_UBICACION_DE_ELEMENTOS.jpg",
+    "descripcion": "- Esquema de ubicación de elementos por coche (Motor Par, Remolque, Motor Impar).\n- Muestra distribución de Panel de Térmicos, Panel Neumático, Grifos B-117, B-73 y Panel Neumático bajo piso."
+  },
+  {
+    "titulo": "PANEL NEUMÁTICO DE CABINA",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["panel neumatico cabina caf", "panel de cabina caf", "esquema panel neumatico caf"],
+    "archivo": "8_PANEL_NEUMATICO_DE_CABINA.jpg",
+    "descripcion": "- B-115: Distribuidor de Freno de Estacionamiento.\n- B-116: Llave de aislamiento de la tubería principal entre unidades.\n- B-119: Llave de aislamiento del circuito del freno de estacionamiento.\n- B-120: Llave de aislamiento para retirar el freno de estacionamiento con la bomba.\n- B-138: Llave de aislamiento para la primera unidad de freno.\n- D-20: Llave de aislamiento del circuito de pantógrafo.\n- D-26: Llave de aislamiento del motor-compresor auxiliar.\n- L-2: Llave de aislamiento para la segunda unidad de freno."
+  },
+  {
+    "titulo": "PANEL NEUMÁTICO COCHE REMOLQUE",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["panel neumatico remolque caf", "panel remolque caf", "esquema remolque caf"],
+    "archivo": "9_PANEL_NEUMATICO_COCHE_REMOLQUE.jpg",
+    "descripcion": "- B-115: Distribuidor de Freno de Estacionamiento.\n- B-116: Llave de aislamiento de la tubería principal entre unidades.\n- B-119: Llave de aislamiento del circuito del freno de estacionamiento.\n- B-138: Llave de aislamiento para la primera unidad de freno.\n- L-2: Llave de aislamiento para la segunda unidad de freno."
+  },
+  {
+    "titulo": "B-115 DISTRIBUIDOR DEL FRENO DE ESTACIONAMIENTO",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["b115", "b-115", "distribuidor b115", "pulsador af", "distribuidor freno estacionamiento caf"],
+    "archivo": "10_B115_DISTRIBUIDOR_DEL_FRENO_DE_ESTACIONAMIENTO.jpg",
+    "descripcion": "- Distribuidor de aire que canaliza el aire a presión para colocar o retirar el freno de estacionamiento de su coche.\n- PULSADOR 'AF': Al actuarlo, se pone en comunicación la tubería principal con la cámara del cilindro del freno de estacionamiento. Si hay aire a presión y no existe fuga, el muelle de frenado es recogido y se retira el freno."
+  },
+  {
+    "titulo": "DETALLE DEL BOGIE Y ANILLA PARA RETIRAR EL FRENO DE ESTACIONAMIENTO",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["anilla bogie caf", "sirga bogie caf", "desanclaje bogie caf", "mecanismo bogie caf"],
+    "archivo": "11_DETALLE_DEL_BOGIE_Y_ANILLA.jpg",
+    "descripcion": "- Detalle del bogie y anilla metálica / sirga de tirado manual conectada al mecanismo del cilindro de freno.\n- Tirar firmemente de la anilla hasta escuchar el gatillazo mecánico de desanclaje."
+  },
+  {
+    "titulo": "FORMACIÓN AFLOJA Y NO TRACCIONA (BYPASS DE TRACCIÓN APAGADO)",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["esquema afloja no tracciona caf", "ubicacion bypass traccion caf"],
+    "archivo": "12_FORMACION_AFLOJA_Y_NO_TRACCIONA.jpg",
+    "descripcion": "- Puertas abiertas de salón y cabinas intermedias o desbloqueadas: Normalizar el inconveniente de puertas.\n- Avería de SICAS: Verificar condición normal del tren, pulsar Bypass de tracción y descender pasajeros en primer andén.\n- Freno de estacionamiento aplicado en un coche: Pulsar saliente izquierda del B-115, cerrar B-73, retirar freno con sirgas en ambos bogies y normalizar B-73.\n- NOTA: Antes de presionar Bypass de tracción, VERIFICAR QUE LAS PUERTAS ESTÉN CERRADAS."
+  },
+  {
+    "titulo": "APAGAR UNA FORMACIÓN CAF 6000",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["apagar caf", "apagado caf", "desconectar caf", "procedimiento apagado caf"],
+    "archivo": "13_APAGAR_UNA_FORMACION_CAF_6000.jpg",
+    "descripcion": "- Inversora adelante\n- Conectar freno de estacionamiento\n- Desconectar los equipos en forma automática o manual\n- Desconectar llave de toma de mando (A.T.P)\n- Desconectar batería\n- Centrar inversora\n- NOTA: Cuando se realiza por una avería el apagado y encendido de la formación (reseteo), no es necesario conectar el freno de estacionamiento."
+  },
+  {
+    "titulo": "DISTRIBUCIÓN DE PUERTAS, LADOS Y COCHES",
+    "modelo": "CAF 6000",
+    "palabras_clave": ["esquema de puertas caf", "ubicacion de puertas caf", "lados y numeracion caf", "lado 1 caf", "lado 2 caf"],
+    "archivo": "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg",
+    "descripcion": "- Lado 1: Puertas impares (1, 3, 5, 7).\n- Lado 2: Puertas pares (2, 4, 6, 8).\n- Orientación: Punta Rosas (cabecera izquierda) y Punta Alem (cabecera derecha).\n- Numeración de la formación: Coches numerados del 1 al 6."
+  },
+  {
+    "titulo": "Extinguidor de incendios",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["extinguidor mitsubishi", "extintor mitsubishi", "matafuego mitsubishi", "ubicacion matafuego mitsu"],
+    "archivo": "mitsu_01_extinguidor.jpg",
+    "descripcion": "- En los coches sin cabina existen dos extinguidores (uno en cada extremo).\n- En los coches con cabina entera, ½ cabina y ½ cabina reformada el extinguidor se encuentra alojado en la misma."
+  },
+  {
+    "titulo": "Escaleras de evacuación",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["escalera mitsubishi", "escaleras mitsubishi", "ubicacion escalera mitsu"],
+    "archivo": "mitsu_02_escaleras.jpg",
+    "descripcion": "- Cada coche de la formación se encuentra provisto de 1 escalera de emergencia.\n- Ubicada debajo de uno de los asientos del coche e identificada mediante un autoadhesivo."
+  },
+  {
+    "titulo": "Emergencia acústica",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["emergencia acustica mitsubishi", "alarma sonora mitsubishi", "boton rojo mitsubishi", "boton negro mitsubishi"],
+    "archivo": "mitsu_03_emergencia_acustica.jpg",
+    "descripcion": "- Dos compartimientos por coche para el accionamiento de la emergencia acústica.\n- Romper acrílico para accionar botón rojo: produce alarma sonora en salón y cabinas e identifica el nº de coche.\n- Al costado posee un botón negro (protegido por tapa) para normalizar la emergencia."
+  },
+  {
+    "titulo": "Emergencia de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["emergencia de puertas mitsubishi", "ubicacion emergencia puertas mitsu"],
+    "archivo": "mitsu_04_emergencia_puertas.jpg",
+    "descripcion": "- Dos compartimientos por coche para accionar la emergencia de puertas.\n- Romper acrílico y accionar botón: produce pérdida de aire en todos los motores de puertas de ese lado en el coche y activa alarma sonora en salón y cabinas (identificando el nº de coche)."
+  },
+  {
+    "titulo": "Probador de tensión",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["probador de tension mitsubishi", "bastones tension mitsu", "medidor tension tercer riel"],
+    "archivo": "mitsu_05_probador_tension.jpg",
+    "descripcion": "- En coches Mitsubishi se encuentra dentro del armario (posee dos bastones, uno con botón de verificación de funcionamiento).\n- Procedimiento: colocar un extremo en el hongo del riel y el opuesto en el hongo del tercer riel de manera firme y rápida para evitar arco voltaico.\n- Si emite sonido hay presencia de tensión."
+  },
+  {
+    "titulo": "Esquema de distribución de los elementos de seguridad",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["esquema de seguridad mitsubishi", "elementos de seguridad mitsubishi", "plano de seguridad mitsu"],
+    "archivo": "mitsu_06_esquema_seguridad.jpg",
+    "descripcion": "- Esquema de distribución de los elementos de seguridad en la formación Mitsubishi."
+  },
+  {
+    "titulo": "Manómetro doble",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["manometro doble mitsubishi", "manometro sap bp mitsu", "aguja roja aguja negra mitsu"],
+    "archivo": "mitsu_07_manometro_doble.jpg",
+    "descripcion": "- Aguja negra: indica la presión del tubo de aire directo (SAP).\n- Aguja roja: indica la presión en el tubo de freno (BP)."
+  },
+  {
+    "titulo": "Velocímetro",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["velocimetro mitsubishi", "reloj velocidad mitsu"],
+    "archivo": "mitsu_08_velocimetro.jpg",
+    "descripcion": "- Indica la velocidad desarrollada por la formación en Km/h.\n- En condiciones normales considerar como referencia el valor brindado por el MPI del ATP."
+  },
+  {
+    "titulo": "Control de marcha",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de marcha mitsubishi", "arbol de marcha mitsu", "arbol de inversion mitsu", "hombre muerto mitsu"],
+    "archivo": "mitsu_09_control_marcha.jpg",
+    "descripcion": "- Compuesto por el Árbol de marcha y el Árbol de inversión.\n- El árbol de marcha está dotado de un dispositivo de 'Hombre muerto' que debe permanecer presionado permanentemente; al ser liberado produce la aplicación de los frenos de emergencia."
+  },
+  {
+    "titulo": "Control de freno (ME42)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de freno me42", "me42", "manija de freno mitsubishi", "valvula me42"],
+    "archivo": "mitsu_10_control_freno_me42.jpg",
+    "descripcion": "- Comanda la serie de válvulas y contactos eléctricos del frenado mediante los cuales se realizan las operaciones de frenado neumático y dinámico."
+  },
+  {
+    "titulo": "Luz de aviso al conductor",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luz de aviso mitsubishi", "luz de aviso al conductor mitsu", "indicador luz de aviso"],
+    "archivo": "mitsu_11_luz_aviso_conductor.jpg",
+    "descripcion": "- Indica mediante su encendido que están dadas todas las condiciones para iniciar la marcha (puertas cerradas, aire en el BP, NFB de luz de aviso y conmutador de dirección en posición correcta)."
+  },
+  {
+    "titulo": "Amperímetro",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["amperimetro mitsubishi", "reloj amperimetro mitsu"],
+    "archivo": "mitsu_12_amperimetro.jpg",
+    "descripcion": "- Indica la intensidad de corriente que circula por los motores de tracción en la tracción y en el frenado electrodinámico de ese coche."
+  },
+  {
+    "titulo": "Voltímetro de alta tensión",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["voltimetro de alta tension mitsubishi", "voltimetro 600v mitsu"],
+    "archivo": "mitsu_13_voltimetro_alta_tension.jpg",
+    "descripcion": "- Indica la tensión existente en la línea.\n- Normalmente debe presentar valores entre 600 y 650 Vcc."
+  },
+  {
+    "titulo": "Voltímetro de baja tensión",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["voltimetro de baja tension mitsubishi", "voltimetro bateria mitsu"],
+    "archivo": "mitsu_14_voltimetro_baja_tension.jpg",
+    "descripcion": "- Indica la tensión de baterías y al arrancar el motoalternador la tensión que entrega este.\n- Su valor oscila entre 36 y 38 Vcc."
+  },
+  {
+    "titulo": "Luces indicadoras",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luces indicadoras mitsubishi", "panel lateral izquierdo mitsu", "indicadores luminosos mitsu"],
+    "archivo": "mitsu_15_luces_indicadoras.jpg",
+    "descripcion": "- Ubicadas sobre el panel lateral izquierdo en coches con cabina y ½ cabina.\n- Brindan información del estado operacional del coche (indicadores blancos) y de la formación (indicadores de color)."
+  },
+  {
+    "titulo": "Dispositivo de paratren ( caja de control )",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["caja paratren mitsubishi", "dispositivo paratren mitsu", "pulsador paratren mitsu"],
+    "archivo": "mitsu_16_dispositivo_paratren.jpg",
+    "descripcion": "- Ubicado sobre el panel izquierdo. Posee LED verde (paratren normal), LED rojo (paratren aplicado) y botón de reposición.\n- Ante una aplicación de paratren se produce frenado de emergencia y encendido del LED rojo.\n- Procedimiento: colocar manija de control de freno en emergencia, reponer paratren con el pulsador y dar aviso al PCO."
+  },
+  {
+    "titulo": "Luz indicadora de alarma",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luz indicadora de alarma mitsubishi", "boton silenciar alarma mitsu"],
+    "archivo": "mitsu_17_luz_indicadora_alarma.jpg",
+    "descripcion": "- Indica mediante aviso acústico e indicador luminoso el número de coche en el que fue accionada la emergencia acústica o de puertas.\n- Posee un botón para silenciar la alarma sonora dentro de la cabina, permaneciendo el número de coche encendido hasta la normalización en el lugar."
+  },
+  {
+    "titulo": "Interruptor de control CT (Anulado)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["interruptor ct mitsubishi", "control ct mitsu", "llave ct mitsu"],
+    "archivo": "mitsu_18_interruptor_control_ct.jpg",
+    "descripcion": "- Habilita el circuito de control.\n- Su posición normal es hacia arriba."
+  },
+  {
+    "titulo": "Botón de reset del OLR",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["reset olr mitsubishi", "boton olr mitsu", "reposicion olr mitsu"],
+    "archivo": "mitsu_19_boton_reset_olr.jpg",
+    "descripcion": "- Utilizado para la reposición del automático de sobrecarga (OLR).\n- Alojado en el mismo compartimiento del interruptor de control CT."
+  },
+  {
+    "titulo": "NFB de Cabina (ubicación)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["nfb de cabina mitsubishi", "ubicacion nfb mitsubishi", "termicas mitsubishi"],
+    "archivo": "mitsu_20_nfb_cabina.jpg",
+    "descripcion": "- Ubicación de los NFB de cabina en coches Mitsubishi."
+  },
+  {
+    "titulo": "Armario lateral",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["armario lateral mitsubishi", "armario cabina mitsu"],
+    "archivo": "mitsu_21_armario_lateral.jpg",
+    "descripcion": "- Armario lateral de cabina en coches Mitsubishi."
+  },
+  {
+    "titulo": "Interruptor de enclavamiento",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["interruptor de enclavamiento mitsubishi", "llave enclavamiento mitsu", "llave de maniobra mitsu"],
+    "archivo": "mitsu_22_interruptor_enclavamiento.jpg",
+    "descripcion": "- Habilita un sistema de seguridad que no permite tener maniobra si alguna puerta de la formación está abierta."
+  },
+  {
+    "titulo": "Emergencia de cabina",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["emergencia de cabina mitsubishi", "soga de emergencia mitsu", "soga mitsu"],
+    "archivo": "mitsu_23_emergencia_cabina.jpg",
+    "descripcion": "- Se acciona tirando de una soga y produce la aplicación del freno de emergencia.\n- La soga indica la aplicación mediante una marca existente para tal fin (la soga supera la marca).\n- Ubicada a ambos lados de la cabina."
+  },
+  {
+    "titulo": "Control de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de puertas mitsubishi", "interruptor de puertas mitsu", "llave de puertas mitsu"],
+    "archivo": "mitsu_24_control_puertas.jpg",
+    "descripcion": "- Interruptor para el accionamiento de apertura y cierre de puertas (requiere llave para habilitar).\n- Habilitado el sistema temporizado, al comandar el cierre se activa la alarma sonora y tras 3 segundos se produce el cierre de puertas."
+  },
+  {
+    "titulo": "Temporizado de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["temporizador de puertas mitsubishi", "perilla temporizado mitsu", "anulacion alarma acustica mitsu"],
+    "archivo": "mitsu_25_temporizado_puertas.jpg",
+    "descripcion": "- Ubicado en el armario de NFBs, comanda el cierre de puertas luego del tiempo preestablecido.\n- Dotado de llave metálica tipo perilla para la anulación de la alarma acústica (únicamente en caso de averías según normativa)."
+  },
+  {
+    "titulo": "Llave de conmutación de cierre de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["llave de conmutacion mitsubishi", "conmutador temporizado mitsu"],
+    "archivo": "mitsu_26_llave_conmutacion_cierre_puertas.jpg",
+    "descripcion": "- Ubicada junto al conmutador de dirección; comanda la habilitación o deshabilitación del sistema temporizado de puertas.\n- Posición normal: habilitado (posición vertical)."
+  },
+  {
+    "titulo": "Control de puertas para el conductor (sin habilitar)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["control de puertas conductor mitsubishi", "conmutador puertas conductor mitsu"],
+    "archivo": "mitsu_27_control_puertas_conductor.jpg",
+    "descripcion": "- A ambos lados del control de marcha se encuentran los conmutadores de dos posiciones para la apertura y cierre de puertas correspondientes a cada lado de la formación."
+  },
+  {
+    "titulo": "Interruptor de cortocircuito de cierre de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["cuchillas spd mitsubishi", "interruptor spd mitsu", "anulacion spd mitsu"],
+    "archivo": "mitsu_28_interruptor_cortocircuito_cierre_puertas.jpg",
+    "descripcion": "- Posee dos cuchillas inversoras (una por lado). Hacia abajo habilitan el circuito del control de velocidad (SPD), impidiendo abrir puertas a más de 5 km/h.\n- Para anular SPD: subir el interruptor del lado correspondiente (la tapa de acceso no podrá cerrarse)."
+  },
+  {
+    "titulo": "Conmutador de dirección",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["conmutador de direccion mitsubishi", "llave direccion mitsu", "posicion conmutador mitsu"],
+    "archivo": "mitsu_29_conmutador_direccion.jpg",
+    "descripcion": "- Cierra el circuito de enclavamiento de puertas e identifica cabinas:\n- Conmutador Delantero: flecha señala hacia el conductor.\n- Conmutador Trasero: flecha señala hacia el lado opuesto al conductor.\n- Conmutador Neutro: flecha señala hacia atrás e identifica cabina media."
+  },
+  {
+    "titulo": "Llave de modalidad CMC - CL",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["llave cmc cl mitsubishi", "llave de modalidad mitsu", "selector cmc cl"],
+    "archivo": "mitsu_30_llave_modalidad_cmc_cl.jpg",
+    "descripcion": "- Ubicada a la izquierda del control maestro, permite seleccionar entre modalidad CMC y CL.\n- Posee trabamiento de seguridad: debe ser presionada hacia adentro para su accionamiento."
+  },
+  {
+    "titulo": "MPI (Modulo Principal de Informaciones)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["mpi mitsubishi", "modulo principal informaciones mitsu", "pantalla atp mitsu"],
+    "archivo": "mitsu_31_mpi.jpg",
+    "descripcion": "- Ubicado sobre los manómetros. Brinda las informaciones necesarias para la operación de la formación con ATP de Abordo."
+  },
+  {
+    "titulo": "Botón de arranque",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["boton de arranque mitsubishi", "pulsador azul mitsu"],
+    "archivo": "mitsu_32_boton_arranque.jpg",
+    "descripcion": "- Pulsador de color azul ubicado debajo del teléfono.\n- Debe ser presionado toda vez que la formación se detenga antes de proceder a aflojar el tren."
+  },
+  {
+    "titulo": "Llave de A.L y Llave de reset",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["llave al mitsubishi", "llave reset atp mitsu", "aislado limitado mitsu"],
+    "archivo": "mitsu_33_llave_al_llave_reset.jpg",
+    "descripcion": "- Llave de AL (Aislado Limitado): conmuta el ATP de Abordo a la modalidad AL.\n- Llave de Reset: efectúa un Reset al ATP mediante giro en el sentido de las agujas del reloj (mantener accionada al menos 5 segundos)."
+  },
+  {
+    "titulo": "Grifos de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["grifos de puertas mitsubishi", "grifo general puertas mitsu", "grifo individual puertas mitsu", "grifo rojo mitsu"],
+    "archivo": "mitsu_34_grifos_puertas.jpg",
+    "descripcion": "- Grifo general: debajo de 1 asiento en la punta A lado 1.\n- Grifos individuales: debajo de los asientos cerca de puertas, junto al motor de puertas (grifo rojo en ventanita). Produce pérdida de aire del par de puertas y traba la ventanita.\n- Serie 900: manómetros debajo de asiento central lado 1 y grifo de puertas en punta B lado 1."
+  },
+  {
+    "titulo": "Motor de puertas",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["motor de puertas mitsubishi", "mecanismo puertas mitsu"],
+    "archivo": "mitsu_35_motor_puertas.jpg",
+    "descripcion": "- Motor de puertas en coches Mitsubishi."
+  },
+  {
+    "titulo": "Luces indicadoras superiores",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luces indicadoras superiores mitsubishi", "luz roja lateral mitsu", "luz blanca lateral mitsu", "luz amarilla lateral mitsu"],
+    "archivo": "mitsu_36_luces_indicadoras_superiores.jpg",
+    "descripcion": "- Tres luces indicadoras en cada lateral superior:\n- Luz roja: Puertas abiertas.\n- Luz blanca: Desconexión de automático (OLR).\n- Luz amarilla: Emergencia acústica activada."
+  },
+  {
+    "titulo": "Grifo interruptor",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["grifo interruptor mitsubishi", "palanca acople mitsu", "grifos sap bp mitsu"],
+    "archivo": "mitsu_37_grifo_interruptor.jpg",
+    "descripcion": "- Foto 1: Interrumpe sincronismos eléctricos y neumáticos de la cabeza de acople (palanca apuntando hacia el acoplador interrumpe circuitos).\n- Foto 2: En series 300 y 900 se utilizan grifos neumáticos para corte de SAP y BP en lugar de grifos interruptores."
+  },
+  {
+    "titulo": "Electroválvulas de emergencia (EMV1 y EMV2)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["electrovalvulas emv1 emv2", "emv1", "emv2", "electrovalvulas mitsubishi"],
+    "archivo": "mitsu_38_electrovalvulas_emergencia.jpg",
+    "descripcion": "- Producen pérdida en la cañería del BP desencadenando freno de emergencia:\n- EMV1: Relacionada con emergencias (se alimenta al activarse).\n- EMV2: Relacionada con ATP de Abordo (normalmente alimentada; si se corta la alimentación, libera aire del BP)."
+  },
+  {
+    "titulo": "Dispositivo de accionamiento A1",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["dispositivo a1 mitsubishi", "valvula a1 mitsu", "palanca roja bogie mitsu", "grifo verde freno mitsu"],
+    "archivo": "mitsu_39_dispositivo_accionamiento_a1.jpg",
+    "descripcion": "- Válvulas encargadas del frenado y aflojamiento del coche.\n- Incluye válvula de desaire de bogies (palanca roja) para anular bogies.\n- Provisto de freno de seguridad: para liberarlo usar el grifo verde (enciende luz indicadora al estar activado)."
+  },
+  {
+    "titulo": "Caja controladora del MG",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["caja controladora mg mitsubishi", "caja mg mitsu", "motogenerador mitsu"],
+    "archivo": "mitsu_40_caja_controladora_mg.jpg",
+    "descripcion": "- Alojamiento de protecciones y relay de puesta en marcha del Motogenerador (MG)."
+  },
+  {
+    "titulo": "MPI (Modulo Principal de Informaciones)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["mpi cabina mitsubishi", "pantalla mpi mitsu"],
+    "archivo": "mitsu_41_mpi_cabina.jpg",
+    "descripcion": "- MPI en la cabina de conducción: visualiza velocidad objetivo, velocidad de la formación, modo de conducción, corte de maniobra y aplicación de frenado."
+  },
+  {
+    "titulo": "Modo de operación CMC (Conducción Manual Controlada)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["modo cmc mitsubishi", "conduccion manual controlada mitsu"],
+    "archivo": "mitsu_42_modo_cmc.jpg",
+    "descripcion": "- Modo normal de conducción con funciones de seguridad garantizadas por ATP DE ABORDO.\n- Posicionar llave de modalidad en CMC (presionar hacia adentro para destrabar).\n- El equipo calcula la velocidad permitida/objetivo y comanda corte de tracción y freno."
+  },
+  {
+    "titulo": "Modo de operación CL (Conducción Limitada)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["modo cl mitsubishi", "conduccion limitada mitsu"],
+    "archivo": "mitsu_43_modo_cl.jpg",
+    "descripcion": "- Seguridad garantizada por el Conductor (uso ante falla de antena receptora, transmisor de vía u ocupación de circuito).\n- Velocidad permitida y objetivo fijada en 10 km/h independientemente de las señales de vía."
+  },
+  {
+    "titulo": "Modo de operación AL (Aislado Limitado)",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["modo al mitsubishi", "aislado limitado mitsu"],
+    "archivo": "mitsu_44_modo_al.jpg",
+    "descripcion": "- Modo de aislamiento parcial ante falla del equipamiento de abordo (no actúa sobre el freno del tren).\n- Tracción supervisada por Limitador de Propulsión a 25 km/h max.\n- Requiere orden expresa del Supervisor de PCO/CTC para accionar conmutador precintado en armario de NFBs."
+  },
+  {
+    "titulo": "Detección y gestión de falla del ATP de Abordo",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["luz diagnosticos mitsubishi", "codigo c1 c2 mitsu"],
+    "archivo": "mitsu_45_deteccion_falla_atp.jpg",
+    "descripcion": "- Falla indicada en MPI por luz de Diagnósticos y aplicación de freno de emergencia.\n- Para identificar tipo de falla: mantener presionados simultáneamente ambos botones del MPI. El display mostrará C1, Código de falla, C2 y Código de rutina."
+  },
+  {
+    "titulo": "MPI (Modulo Principal de Informaciones) sus funciones",
+    "modelo": "Mitsubishi",
+    "palabras_clave": ["funciones mpi mitsubishi", "indicadores mpi mitsu", "diagrama de barras mitsu"],
+    "archivo": "mitsu_46_mpi_funciones.jpg",
+    "descripcion": "- Interfaz ATP con el conductor:\n1- Indicador verde 'CMC'\n2- Indicador verde 'CL'\n3- Indicador amarillo 'Tracción'\n4- Indicador amarillo 'Freno'\n5- Indicador rojo 'Diagnóstico de fallas'\n6- Indicador rojo 'Velocidad objetivo Km/h'\n7- Indicador punto 'Velocidad permitida'\n8- Velocidad real (numérico y diagrama de barras)\n9- Botones de intensidad / prueba de lámparas."
+  }
+]
