@@ -157,7 +157,7 @@ def search_relevant_image(query, history=None):
             if kw == query_norm:
                 score += 15
             elif kw in query_norm:
-                score += len(kw)  # Mayor puntaje a frases más específicas y largas
+                score += len(kw)
             elif any(kw in w or w in kw for w in query_words if len(w) > 2):
                 score += 2
 
@@ -170,10 +170,8 @@ def search_relevant_image(query, history=None):
     matches.sort(key=lambda x: x[0], reverse=True)
     max_score = matches[0][0]
     
-    # Filtramos las coincidencias que estén en el puntaje más alto
     top_matches = [m[1] for m in matches if m[0] == max_score]
 
-    # Si hay más de una tarjeta con el mismo puntaje máximo (ej: "coche frenado" genérico)
     if len(top_matches) > 1:
         titles = [item.get("titulo") for item in top_matches]
         return {
@@ -193,7 +191,11 @@ def search_relevant_image(query, history=None):
     }
 
 def generate_voice_file(text, output_file):
+    """Genera audio MP3. Devuelve True si se generó con éxito, False si falló."""
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
+    if not clean_text.strip():
+        return False
+
     async def _generate():
         communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
         await communicate.save(output_file)
@@ -201,10 +203,12 @@ def generate_voice_file(text, output_file):
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(_generate())
+        loop.run_until_complete(asyncio.wait_for(_generate(), timeout=10.0))
         loop.close()
+        return os.path.exists(output_file)
     except Exception as e:
-        print(f"Error generando audio: {e}")
+        print(f"Error generando audio TTS: {e}")
+        return False
 
 def limpiar_redundancia(texto):
     if not texto:
@@ -298,7 +302,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     }
     
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
         if response.status_code == 200:
             raw_text = response.json()['choices'][0]['message']['content']
             return limpiar_redundancia(raw_text), None
@@ -323,33 +327,37 @@ def api_preguntar():
     if host_url.startswith("http://"):
         host_url = host_url.replace("http://", "https://", 1)
 
-    # Si es una coincidencia exacta de una única ficha
+    # Si es coincidencia exacta con imagen
     if search_result.get("type") == "EXACT" and search_result.get("image"):
         img_info = search_result["image"]
         respuesta_texto = limpiar_redundancia(img_info.get('descripcion', ''))
         
         filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
         filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-        generate_voice_file(respuesta_texto, filepath_audio)
+        
+        audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
+        audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
 
         return jsonify({
             'respuesta_texto': respuesta_texto,
-            'audio_url': f"{host_url}/audio/{filename_audio}",
+            'audio_url': audio_url,
             'imagen_url': f"{host_url}/images/{img_info.get('archivo')}" if img_info.get('archivo') else None
         })
 
-    # Consulta ambigua o general (ej: "coche frenado")
+    # Consulta con la IA / Manuales
     respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
     if error:
         respuesta_texto = f"- No fue posible procesar la consulta: {error}"
 
     filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
     filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-    generate_voice_file(respuesta_texto, filepath_audio)
+    
+    audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
+    audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
 
     return jsonify({
         'respuesta_texto': respuesta_texto,
-        'audio_url': f"{host_url}/audio/{filename_audio}",
+        'audio_url': audio_url,
         'imagen_url': None
     })
 
@@ -364,15 +372,16 @@ def api_generar_audio():
 
     filename_audio = f"audio_nov_{uuid.uuid4().hex[:8]}.mp3"
     filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-    generate_voice_file(texto, filepath_audio)
+    audio_ok = generate_voice_file(texto, filepath_audio)
+
+    if not audio_ok:
+        return jsonify({'error': 'No se pudo generar el audio'}), 500
 
     host_url = request.host_url.rstrip('/')
     if host_url.startswith("http://"):
         host_url = host_url.replace("http://", "https://", 1)
 
-    audio_url = f"{host_url}/audio/{filename_audio}"
-
-    return jsonify({'audio_url': audio_url})
+    return jsonify({'audio_url': f"{host_url}/audio/{filename_audio}"})
 
 # --- MANEJADORES TELEGRAM ---
 @bot.message_handler(commands=['start', 'help'])
@@ -391,7 +400,7 @@ def handle_voice_message(message):
         files = {'file': ('voice.ogg', downloaded_file, 'audio/ogg')}
         data = {'model': 'whisper-large-v3', 'language': 'es'}
         
-        trans_resp = requests.post(transcribe_url, headers=headers, files=files, data=data, timeout=30)
+        trans_resp = requests.post(transcribe_url, headers=headers, files=files, data=data, timeout=20)
         if trans_resp.status_code != 200:
             bot.reply_to(message, "⚠️ Error procesando nota de voz.")
             return
@@ -413,16 +422,13 @@ def handle_voice_message(message):
                 with open(img_path, "rb") as photo:
                     bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
 
-        bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
-        generate_voice_file(respuesta_texto, filepath)
-
-        with open(filepath, "rb") as audio:
-            bot.send_voice(message.chat.id, audio)
-
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        if generate_voice_file(respuesta_texto, filepath):
+            with open(filepath, "rb") as audio:
+                bot.send_voice(message.chat.id, audio)
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error procesando nota de voz: {str(e)}")
@@ -444,25 +450,29 @@ def handle_text_message(message):
                 with open(img_path, "rb") as photo:
                     bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
 
-        bot.send_chat_action(message.chat.id, 'record_audio')
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
-        generate_voice_file(respuesta_texto, filepath)
-
-        with open(filepath, "rb") as audio:
-            bot.send_voice(message.chat.id, audio)
-
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        if generate_voice_file(respuesta_texto, filepath):
+            with open(filepath, "rb") as audio:
+                bot.send_voice(message.chat.id, audio)
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-def run_bot():
-    bot.polling(non_stop=True)
+# Inicio del Bot de Telegram en hilo secundario (seguro para Gunicorn / WSGI)
+def run_telegram_bot():
+    try:
+        print("Iniciando Bot de Telegram...")
+        bot.polling(non_stop=True, timeout=30)
+    except Exception as e:
+        print(f"Error en hilo de Telegram: {e}")
+
+bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+bot_thread.start()
 
 if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
     port = int(os.environ.get("PORT", 8080))
     print(f"🤖 Paco API & Bot ejecutándose en el puerto {port}...")
     app.run(host="0.0.0.0", port=port)
