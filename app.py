@@ -13,9 +13,9 @@ import telebot
 from pypdf import PdfReader
 import edge_tts
 
-# Directorios para archivos estáticos
-AUDIO_DIR = "static_audio"
-IMAGE_DIR = "static_images"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+AUDIO_DIR = os.path.join(BASE_DIR, "static_audio")
+IMAGE_DIR = os.path.join(BASE_DIR, "static_images")
 os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
@@ -38,7 +38,7 @@ def get_image(filename):
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
-# Configuración y Credenciales (Lee desde Variables de Entorno en Render)
+# Configuración y Credenciales
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
@@ -52,13 +52,50 @@ def normalize_text(text):
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
     return text.lower().strip()
 
-# Indexación RAG optimizada para PDFs
+def check_direct_intents(query):
+    """Detecta directamente saludos y preguntas sobre el origen del nombre PACO."""
+    q_norm = normalize_text(query)
+    
+    # 1. Respuesta al origen del nombre PACO
+    paco_patterns = [
+        "por que paco", "porque paco", "por que te llamas paco", 
+        "porque te llamas paco", "que significa paco", "de donde viene paco", 
+        "por que el nombre paco", "porque el nombre paco", "quien es paco"
+    ]
+    if any(p in q_norm for p in paco_patterns):
+        return "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
+
+    # 2. Respuestas a saludos simples
+    saludos = ["hola", "buen dia", "buenos dias", "buenas tardes", "buenas noches", "buenas", "saludos", "hola paco", "que tal"]
+    words = q_norm.split()
+    
+    # Comprobar si es un saludo y no contiene palabras clave de averías o componentes
+    es_saludo = q_norm in saludos or (len(words) <= 3 and any(w in saludos for w in words))
+    tiene_palabras_tecnicas = any(k in q_norm for k in [
+        "puerta", "freno", "tren", "atp", "sicas", "manual", "imagen", "foto", 
+        "bateria", "bocina", "pantografo", "compresor", "averia", "falla", "grifo", "seccionar"
+    ])
+    
+    if es_saludo and not tiene_palabras_tecnicas:
+        return "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
+
+    return None
+
+# Indexación RAG etiquetando explícitamente el modelo de tren
 print("Indexando manuales técnicos completos...")
 chunks = []
-pdf_files = sorted(glob.glob("*.pdf"))
+pdf_files = sorted(glob.glob(os.path.join(BASE_DIR, "*.pdf")))
 
 for pdf in pdf_files:
     try:
+        filename_lower = os.path.basename(pdf).lower()
+        if "caf" in filename_lower:
+            model_tag = "CAF 6000"
+        elif "mitsu" in filename_lower:
+            model_tag = "Mitsubishi"
+        else:
+            model_tag = "General"
+
         reader = PdfReader(pdf)
         full_text = ""
         for page in reader.pages:
@@ -74,12 +111,14 @@ for pdf in pdf_files:
         for word in words:
             current_chunk.append(word)
             current_len += len(word) + 1
-            if current_len >= 500:
-                chunks.append(" ".join(current_chunk))
-                current_chunk = current_chunk[-15:]
+            if current_len >= 1200:  # Bloques amplios para preservar procedimientos completos
+                chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
+                chunks.append(chunk_str)
+                current_chunk = current_chunk[-30:]  # Overlap para no cortar contextos
                 current_len = sum(len(w) + 1 for w in current_chunk)
         if current_chunk:
-            chunks.append(" ".join(current_chunk))
+            chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
+            chunks.append(chunk_str)
     except Exception as e:
         print(f"Error procesando {pdf}: {e}")
 
@@ -98,11 +137,17 @@ SYNONYMS = {
     "escalera": ["escalera", "evacuacion", "emergencia"]
 }
 
-def search_relevant_chunks(query, top_k=5):
+def search_relevant_chunks(query, top_k=8):
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
     keywords = [w for w in words if w not in stopwords and len(w) > 2]
+
+    target_model = None
+    if any(m in query_norm for m in ["caf", "6000", "sicas", "microcef"]):
+        target_model = "CAF 6000"
+    elif any(m in query_norm for m in ["mitsubishi", "mitsu", "nfb", "atp"]):
+        target_model = "Mitsubishi"
 
     expanded_keywords = set(keywords)
     for kw in keywords:
@@ -113,6 +158,13 @@ def search_relevant_chunks(query, top_k=5):
     for chunk in chunks:
         chunk_norm = normalize_text(chunk)
         score = sum(1 for kw in expanded_keywords if kw in chunk_norm)
+        
+        if target_model:
+            if f"[modelo: {target_model.lower()}]" in chunk_norm:
+                score += 5
+            elif "[modelo: general]" not in chunk_norm:
+                score -= 3
+
         if score > 0:
             scored_chunks.append((score, chunk))
 
@@ -120,31 +172,30 @@ def search_relevant_chunks(query, top_k=5):
     
     relevant_text = ""
     for score, chunk in scored_chunks[:top_k]:
-        relevant_text += f"\n- {chunk}\n"
+        relevant_text += f"\n{chunk}\n"
 
     return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
-def search_relevant_image(query, history=None):
-    json_path = None
+def load_imagenes_json():
     for candidate in ["imagenes.json", "Imagenes.json", "IMAGENES.JSON"]:
-        if os.path.exists(candidate):
-            json_path = candidate
-            break
+        json_path = os.path.join(BASE_DIR, candidate)
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error leyendo {json_path}: {e}")
+    return None
 
-    if not json_path:
-        return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
-    
-    try:
-        with open(json_path, "r", encoding="utf-8") as f:
-            images_db = json.load(f)
-    except Exception as e:
-        print(f"Error leyendo {json_path}: {e}")
+def search_relevant_image(query, history=None):
+    images_db = load_imagenes_json()
+    if not images_db:
         return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
 
     query_norm = normalize_text(query)
     all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
 
-    if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes"]):
+    if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes", "hay imagenes"]):
         return {"type": "GENERAL_QUERY", "image": None, "images": [], "options": [], "all_titles": all_titles}
 
     matches = []
@@ -191,7 +242,6 @@ def search_relevant_image(query, history=None):
     }
 
 def generate_voice_file(text, output_file):
-    """Genera audio MP3. Devuelve True si se generó con éxito, False si falló."""
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "")
     if not clean_text.strip():
         return False
@@ -210,43 +260,20 @@ def generate_voice_file(text, output_file):
         print(f"Error generando audio TTS: {e}")
         return False
 
-def limpiar_redundancia(texto):
-    if not texto:
-        return texto
-
-    lineas = texto.split('\n')
-    lineas_limpias = []
-    i = 0
-    while i < len(lineas):
-        linea_actual = lineas[i].strip()
-        if i + 1 < len(lineas):
-            linea_siguiente = lineas[i + 1].strip()
-            
-            match_encab = re.match(r'^\d+\.\s*\*\*(.*?)\*\*:?$', linea_actual)
-            match_vineta = re.match(r'^[-\*]\s*(.*)$', linea_siguiente)
-            
-            if match_encab and match_vineta:
-                t_encab = match_encab.group(1).strip().lower().rstrip('.')
-                t_vineta = match_vineta.group(1).strip().lower().rstrip('.')
-                
-                if t_encab in t_vineta or t_vineta in t_encab:
-                    lineas_limpias.append(f"- {match_vineta.group(1).strip()}")
-                    i += 2
-                    continue
-
-        lineas_limpias.append(lineas[i])
-        i += 1
-
-    return "\n".join(lineas_limpias)
-
 def query_groq_llm(user_prompt, search_result=None, history=None):
-    if not GROQ_API_KEY:
-        return "- Error: No se ha configurado la clave GROQ_API_KEY en las variables de entorno de Render.", None
+    # 0. Verificación de respuestas directas (Saludos / Nombre PACO)
+    direct_response = check_direct_intents(user_prompt)
+    if direct_response:
+        return direct_response, None
 
+    if not GROQ_API_KEY:
+        return "- Error: No se ha configurado la clave GROQ_API_KEY en Render.", None
+
+    # Respuesta si coincide exactamente con una imagen (se entrega la descripción completa sin resumir)
     if search_result and search_result.get("type") == "EXACT" and search_result.get("image"):
         desc = search_result["image"].get('descripcion', '')
         if desc:
-            return limpiar_redundancia(desc), None
+            return desc, None
 
     if search_result and search_result.get("type") == "AMBIGUOUS_OPTIONS":
         opciones_str = "\n".join([f"- **{opt}**" for opt in search_result.get("options", [])])
@@ -260,20 +287,29 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         else:
             return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
 
-    relevant_context = search_relevant_chunks(user_prompt, top_k=5)
+    relevant_context = search_relevant_chunks(user_prompt, top_k=8)
 
     system_instruction = f"""
-    Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte.
-    Hablas de forma directa, profesional, fluida y al grano.
+    Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte (Línea B).
 
-    REGLA DE ORO OBLIGATORIA (CERO ALUCINACIONES):
-    1. Responde ÚNICAMENTE basándote en el CONTEXTO TÉCNICO facilitado abajo.
-    2. Si el procedimiento o componente NO figura claramente en la información provista, responde estricta y únicamente:
-       "- No dispongo de la información exacta para esa consulta en los manuales ni en las imágenes cargadas."
-    3. NUNCA inventes términos mecánicos, motores de arranque ni pasos genéricos que no pertenezcan al Subte.
+    REGLAS OBLIGATORIAS DE RESPUESTA:
 
-    ESTRUCTURA DE RESPUESTA OBLIGATORIA:
-    Responde SIEMPRE usando listas simples con guiones (-). Sin preámbulos.
+    1. SALUDOS: Si el usuario te saluda, responde amistosamente y pregunta: "¿En qué te puedo ayudar hoy?".
+    2. NOMBRE: Si te preguntan por qué te llamas PACO, responde exactamente:
+       "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
+    3. FIDELIDAD ABSOLUTA Y SIN RESUMIR:
+       - Responde TRANSCRIBIENDO O EXPLICANDO COMPLETAMENTE la información presente en los manuales provistos.
+       - NO RESUMAS, NO SINTETICES, NO OMITAS PASOS NI DETALLES TÉCNICOS. La respuesta debe ser 100% exacta y confiable.
+    4. DUPLICIDAD Y AMBIGÜEDAD ENTRE FORMACIONES (CAF 6000 vs MITSUBISHI):
+       - La Línea B opera con formaciones CAF 6000 y Mitsubishi.
+       - Si la consulta del usuario trata sobre una avería o procedimiento que existe en AMBOS manuales (ejemplo: "puertas no abren", "puertas no cierran", "tren no arranca", "freno", "compresor", etc.) Y EL USUARIO NO ESPECIFICÓ LA FORMACIÓN:
+         NO entregues los procedimientos mezclados ni elijas una formación al azar.
+         Responde PREGUNTANDO A CUÁL FORMACIÓN SE REFIERE.
+         Ejemplo exacto de respuesta: "Esa consulta aplica para ambas formaciones. ¿Te referís al procedimiento para la formación Mitsubishi o para la formación CAF 6000?"
+       - Si el usuario aclara la formación (o si la consulta trata sobre un componente exclusivo de un modelo, como SICAS/MICROCEF en CAF 6000 o NFB/ATP en Mitsubishi), entrega el procedimiento exacto y completo de dicha formación.
+    5. SI NO FIGURA EN LOS MANUALES:
+       - Si la consulta NO figura claramente en la información provista, responde únicamente:
+         "- No dispongo de la información exacta para esa consulta en los manuales ni en las imágenes cargadas."
 
     INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE DE LOS MANUALES:
     {relevant_context}
@@ -305,7 +341,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         response = requests.post(url, json=payload, headers=headers, timeout=15)
         if response.status_code == 200:
             raw_text = response.json()['choices'][0]['message']['content']
-            return limpiar_redundancia(raw_text), None
+            return raw_text, None
         else:
             err = response.json().get('error', {}).get('message', 'Error en la consulta')
             return f"- Error desde Groq ({response.status_code}): {err}", None
@@ -320,8 +356,6 @@ def api_preguntar():
 
     try:
         data = request.get_json(silent=True) or {}
-        
-        # Lee la consulta sin importar qué nombre de variable use el frontend
         pregunta = data.get('pregunta') or data.get('message') or data.get('text') or data.get('query') or ''
         historial = data.get('historial', [])
         
@@ -337,10 +371,9 @@ def api_preguntar():
         if host_url.startswith("http://"):
             host_url = host_url.replace("http://", "https://", 1)
 
-        # Si es coincidencia exacta con imagen
         if search_result.get("type") == "EXACT" and search_result.get("image"):
             img_info = search_result["image"]
-            respuesta_texto = limpiar_redundancia(img_info.get('descripcion', ''))
+            respuesta_texto = img_info.get('descripcion', '')
             
             filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
             filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
@@ -354,7 +387,6 @@ def api_preguntar():
                 'imagen_url': f"{host_url}/images/{img_info.get('archivo')}" if img_info.get('archivo') else None
             }), 200
 
-        # Consulta con la IA / Manuales
         respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
         if error:
             respuesta_texto = f"- No fue posible procesar la consulta: {error}"
@@ -404,7 +436,7 @@ def api_generar_audio():
 # --- MANEJADORES TELEGRAM ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te ayudo?", parse_mode="Markdown")
+    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te puedo ayudar hoy?", parse_mode="Markdown")
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice_message(message):
@@ -479,7 +511,7 @@ def handle_text_message(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-# Inicio del Bot de Telegram en hilo secundario (seguro para Gunicorn / WSGI)
+# Inicio del Bot de Telegram en hilo secundario
 def run_telegram_bot():
     try:
         print("Iniciando Bot de Telegram...")
