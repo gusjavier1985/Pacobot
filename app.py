@@ -193,19 +193,36 @@ def search_relevant_image(query, history=None):
     if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes", "hay imagenes"]):
         return {"type": "GENERAL_QUERY", "image": None, "images": [], "options": [], "all_titles": all_titles}
 
+    # Detectar el modelo solicitado en la consulta
+    target_model = None
+    if any(m in query_norm for m in ["caf", "6000"]):
+        target_model = "CAF 6000"
+    elif any(m in query_norm for m in ["mitsubishi", "mitsu"]):
+        target_model = "Mitsubishi"
+
     matches = []
     query_words = set(re.findall(r'\b\w+\b', query_norm))
 
     for item in images_db:
-        keywords = [normalize_text(kw) for kw in item.get("palabras_clave", [])]
+        item_model = item.get("modelo", "")
+        # Si el usuario especificó un modelo y el elemento pertenece a otro, se omite
+        if target_model and item_model and item_model != target_model:
+            continue
+
+        raw_keywords = item.get("palabras_clave") or item.get("keywords") or item.get("tags") or []
+        if isinstance(raw_keywords, str):
+            raw_keywords = [raw_keywords]
+            
+        keywords = [normalize_text(kw) for kw in raw_keywords]
         score = 0
+
         for kw in keywords:
             if kw == query_norm:
-                score += 15
+                score += 20
             elif kw in query_norm:
-                score += len(kw)
-            elif any(kw in w or w in kw for w in query_words if len(w) > 2):
-                score += 2
+                score += len(kw) * 2
+            elif any(kw == w or (len(w) > 2 and (kw in w or w in kw)) for w in query_words):
+                score += 3
 
         if score > 0:
             matches.append((score, item))
@@ -215,11 +232,10 @@ def search_relevant_image(query, history=None):
 
     matches.sort(key=lambda x: x[0], reverse=True)
     max_score = matches[0][0]
-    
     top_matches = [m[1] for m in matches if m[0] == max_score]
 
     if len(top_matches) > 1:
-        titles = [item.get("titulo") for item in top_matches]
+        titles = [f"{item.get('titulo')} ({item.get('modelo')})" for item in top_matches]
         return {
             "type": "AMBIGUOUS_OPTIONS",
             "image": None,
@@ -228,10 +244,11 @@ def search_relevant_image(query, history=None):
             "all_titles": all_titles
         }
 
+    selected_image = top_matches[0]
     return {
         "type": "EXACT",
-        "image": top_matches[0],
-        "images": [top_matches[0]],
+        "image": selected_image,
+        "images": [selected_image],
         "options": [],
         "all_titles": all_titles
     }
@@ -400,10 +417,13 @@ def api_preguntar():
             audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
             audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
 
+            archivo_nombre = img_info.get('archivo')
+            imagen_url = f"{host_url}/images/{archivo_nombre}" if archivo_nombre else None
+
             return jsonify({
                 'respuesta_texto': respuesta_texto,
                 'audio_url': audio_url,
-                'imagen_url': f"{host_url}/images/{img_info.get('archivo')}" if img_info.get('archivo') else None
+                'imagen_url': imagen_url
             }), 200
 
         respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
@@ -486,10 +506,12 @@ def handle_voice_message(message):
 
         if search_result.get("type") == "EXACT" and search_result.get("image"):
             img_info = search_result["image"]
-            img_path = os.path.join(IMAGE_DIR, img_info.get('archivo', ''))
-            if os.path.exists(img_path):
-                with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
+            archivo = img_info.get('archivo')
+            if archivo:
+                img_path = os.path.join(IMAGE_DIR, archivo)
+                if os.path.exists(img_path):
+                    with open(img_path, "rb") as photo:
+                        bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
 
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
@@ -514,10 +536,12 @@ def handle_text_message(message):
 
         if search_result.get("type") == "EXACT" and search_result.get("image"):
             img_info = search_result["image"]
-            img_path = os.path.join(IMAGE_DIR, img_info.get('archivo', ''))
-            if os.path.exists(img_path):
-                with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
+            archivo = img_info.get('archivo')
+            if archivo:
+                img_path = os.path.join(IMAGE_DIR, archivo)
+                if os.path.exists(img_path):
+                    with open(img_path, "rb") as photo:
+                        bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
 
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
