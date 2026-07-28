@@ -127,7 +127,6 @@ SYNONYMS = {
 }
 
 def analyze_models_in_chunks(query):
-    """Verifica si la consulta existe en el manual de Mitsubishi, CAF 6000 o en ambos."""
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
@@ -152,7 +151,7 @@ def analyze_models_in_chunks(query):
 
     return mitsu_found, caf_found
 
-def search_relevant_chunks(query, target_model=None, top_k=8):
+def search_relevant_chunks(query, target_model=None, top_k=10):
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
@@ -202,78 +201,31 @@ def load_imagenes_json():
                 print(f"Error leyendo {json_path}: {e}")
     return None
 
-def search_relevant_image(query, history=None):
+def search_relevant_image_by_title(query):
+    """Busca imágenes estrictamente por coincidencia directa de TÍTULO."""
     images_db = load_imagenes_json()
     if not images_db:
-        return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
+        return None
 
     query_norm = normalize_text(query)
-    all_titles = [f"{item.get('titulo', 'Sin título')} ({item.get('modelo', 'General')})" for item in images_db]
-
-    if any(p in query_norm for p in ["imagenes", "fotos", "cargadas", "mostrar imagenes", "tienes imagenes", "tenes imagenes", "hay imagenes"]):
-        return {"type": "GENERAL_QUERY", "image": None, "images": [], "options": [], "all_titles": all_titles}
-
     target_model = None
-    if any(m in query_norm for m in ["caf", "6000"]):
-        target_model = "CAF 6000"
-    elif any(m in query_norm for m in ["mitsubishi", "mitsu"]):
+    if "mitsubishi" in query_norm or "mitsu" in query_norm:
         target_model = "Mitsubishi"
-
-    matches = []
-    query_words = set(re.findall(r'\b\w+\b', query_norm))
+    elif "caf" in query_norm or "6000" in query_norm:
+        target_model = "CAF 6000"
 
     for item in images_db:
+        titulo_norm = normalize_text(item.get("titulo", ""))
         item_model = item.get("modelo", "")
+
         if target_model and item_model and item_model != target_model:
             continue
 
-        raw_keywords = item.get("palabras_clave") or item.get("keywords") or item.get("tags") or []
-        if isinstance(raw_keywords, str):
-            raw_keywords = [raw_keywords]
-            
-        keywords = [normalize_text(kw) for kw in raw_keywords]
-        titulo_norm = normalize_text(item.get("titulo", ""))
-        
-        score = 0
-        if titulo_norm and titulo_norm == query_norm:
-            score += 50
-        else:
-            for kw in keywords:
-                if kw == query_norm:
-                    score += 20
-                elif kw in query_norm:
-                    score += len(kw) * 2
-                elif any(kw == w or (len(w) > 2 and (kw in w or w in kw)) for w in query_words):
-                    score += 3
+        # Coincidencia casi exacta en el título
+        if titulo_norm and (titulo_norm == query_norm or titulo_norm in query_norm or query_norm in titulo_norm):
+            return item
 
-        if score > 0:
-            matches.append((score, item))
-
-    if not matches:
-        return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": all_titles}
-
-    matches.sort(key=lambda x: x[0], reverse=True)
-    max_score = matches[0][0]
-    top_matches = [m[1] for m in matches if m[0] == max_score]
-
-    if len(top_matches) > 1:
-        titles = [f"{item.get('titulo')} ({item.get('modelo')})" for item in top_matches]
-        return {
-            "type": "AMBIGUOUS_OPTIONS",
-            "image": None,
-            "images": [],
-            "options": titles,
-            "all_titles": all_titles
-        }
-
-    selected_image = top_matches[0]
-    return {
-        "type": "EXACT",
-        "image": selected_image,
-        "images": [selected_image],
-        "options": [],
-        "all_titles": all_titles
-    }
+    return None
 
 def generate_voice_file(text, output_file):
     clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "").replace("•", "")
@@ -294,11 +246,10 @@ def generate_voice_file(text, output_file):
         print(f"Error generando audio TTS: {e}")
         return False
 
-def query_groq_llm(user_prompt, search_result=None, history=None):
+def query_groq_llm(user_prompt, target_model=None, history=None):
     clean_user_input = user_prompt.strip()
-    target_model = None
 
-    # Manejar selección previa 1 o 2
+    # Manejo de selección explícita 1 o 2 en el chat
     if clean_user_input in ["1", "2"] and history and len(history) >= 2:
         last_assistant_msg = ""
         last_user_msg = ""
@@ -310,7 +261,17 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
                     last_user_msg = msg.get("content", "")
             if last_assistant_msg and last_user_msg:
                 break
-        
+
+        if "Opción 1: Ver el procedimiento" in last_assistant_msg:
+            # Caso elección entre Falla o Imagen
+            if clean_user_input == "1":
+                user_prompt = last_user_msg
+            else:
+                img_item = search_relevant_image_by_title(last_user_msg)
+                if img_item:
+                    return img_item.get('descripcion', ''), img_item.get('archivo')
+                return "No se encontró una imagen asociada.", None
+
         if "Para el Mitsubishi enviar 1" in last_assistant_msg or "enviar 1" in last_assistant_msg:
             target_model = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
             user_prompt = last_user_msg
@@ -322,30 +283,13 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     if not GROQ_API_KEY:
         return "- Error: No se ha configurado la clave GROQ_API_KEY en Render.", None
 
-    if search_result and search_result.get("type") == "EXACT" and search_result.get("image"):
-        desc = search_result["image"].get('descripcion', '')
-        if desc:
-            return desc, None
-
-    if search_result and search_result.get("type") == "AMBIGUOUS_OPTIONS":
-        opciones_str = "\n".join([f"• {opt}" for opt in search_result.get("options", [])])
-        return f"Para esa consulta tengo las siguientes opciones disponibles:\n\n{opciones_str}\n\n¿Cuál de las opciones necesitás?", None
-
-    if search_result and search_result.get("type") == "GENERAL_QUERY":
-        titles = search_result.get("all_titles", [])
-        if titles:
-            lista_str = "\n".join([f"• {t}" for t in titles])
-            return f"Sí, tengo las siguientes imágenes técnicas cargadas en el sistema:\n\n{lista_str}\n\nPuedes preguntarme por cualquiera de ellas para ver la ubicación o detalles.", None
-        else:
-            return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
-
-    # Verificación de presencia en manuales para evitar preguntas innecesarias
+    # Si la consulta aplica a ambos trenes y no se especificó tren, se pide opción de forma sobria
     if not target_model and clean_user_input not in ["1", "2"]:
         q_norm = normalize_text(user_prompt)
-        has_mitsu_explicit = any(m in q_norm for m in ["mitsubishi", "mitsu"])
-        has_caf_explicit = any(m in q_norm for m in ["caf", "6000"])
+        has_mitsu = "mitsubishi" in q_norm or "mitsu" in q_norm
+        has_caf = "caf" in q_norm or "6000" in q_norm
 
-        if not has_mitsu_explicit and not has_caf_explicit:
+        if not has_mitsu and not has_caf:
             in_mitsu, in_caf = analyze_models_in_chunks(user_prompt)
             if in_mitsu and in_caf:
                 return f"Si te referís a la consulta:\n\n• Para el Mitsubishi enviar 1\n• Para el CAF 6000 enviar 2", None
@@ -354,20 +298,35 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
             elif in_caf:
                 target_model = "CAF 6000"
 
-    relevant_context = search_relevant_chunks(user_prompt, target_model=target_model, top_k=8)
+    # Verificar si el título coincide con imagen Y también con procedimiento
+    img_match = search_relevant_image_by_title(user_prompt)
+    if img_match and clean_user_input not in ["1", "2"]:
+        q_norm = normalize_text(user_prompt)
+        if any(w in q_norm for w in ["foto", "imagen", "ver imagen", "esquema"]):
+            return img_match.get('descripcion', ''), img_match.get('archivo')
+        else:
+            # Ofrecer opción de ver resolución o imagen
+            return (f"Para la consulta se encontraron dos opciones disponibles:\n\n"
+                    f"• Opción 1: Ver el procedimiento / resolución de la falla\n"
+                    f"• Opción 2: Ver la imagen explicativa\n\n"
+                    f"Por favor indicá 1 o 2."), None
+
+    relevant_context = search_relevant_chunks(user_prompt, target_model=target_model, top_k=10)
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte (Línea B).
 
-    REGLAS ESTRICTAS DE FIDELIDAD TÉCNICA:
-    1. TRANSCRIBE ÚNICAMENTE LO QUE FIGURA EN LOS MANUALES PROVISTOS.
-    2. ESTÁ STRICTAMENTE PROHIBIDO INVENTAR PASOS, DIAGNÓSTICOS, SISTEMAS DE COMUNICACIÓN, SEGURIDAD O NOTAS QUE NO ESTÉN EN EL TEXTO DEL MANUAL.
-    3. Copia fielmente la estructura del manual (puntos, viñetas, guiones y numeraciones originales).
-    4. NO uses intros, saludos, ni frases como "Según el manual" o "Para solucionar...".
-    5. Si la información exacta no está escrita en los fragmentos del contexto, responde únicamente:
+    REGLAS STRICTAS E INVIOLABLES DE RESPUESTA:
+    1. SI TE PREGUNTAN QUÉ AVERÍAS O FALLAS TIENE UN TREN (Mitsubishi o CAF 6000):
+       - DEBES listar TODAS las averías y títulos de fallas que figuren en el manual provisto para ese modelo, sin omitir ninguna.
+    2. TRANSCRIBE ÚNICAMENTE LO QUE FIGURA LITERALMENTE EN EL MANUAL PROVISTO.
+    3. PROHIBIDO TOTALMENTE INVENTAR PASOS, DIAGNÓSTICOS, SISTEMAS O COMPONENTES QUE NO ESTÉN EN EL TEXTO.
+    4. MANTÉN EL FORMATO Y VIÑETAS ORIGINALES DEL MANUAL.
+    5. NO agregues saludos, frases de cortesía, ni frases tipo "Según el manual..." ni "Para solucionar...". Ve DIRECTO a la información.
+    6. Si la información no se encuentra en el texto provisto, responde estrictamente:
        "- No dispongo de la información exacta para esa consulta en los manuales cargados."
 
-    TEXTO TÉCNICO RECUPERADO DEL MANUAL:
+    CONTENIDO EXTRAÍDO DE LOS MANUALES:
     {relevant_context}
     """
 
@@ -404,6 +363,7 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     except Exception as e:
         return f"- Error de conexión con el servicio de IA: {str(e)}", None
 
+# --- ENDPOINT CHAT ---
 @app.route('/preguntar', methods=['POST', 'OPTIONS'])
 def api_preguntar():
     if request.method == 'OPTIONS':
@@ -421,33 +381,13 @@ def api_preguntar():
                 'imagen_url': None
             }), 200
 
-        search_result = search_relevant_image(pregunta, history=historial)
         host_url = request.host_url.rstrip('/')
         if host_url.startswith("http://"):
             host_url = host_url.replace("http://", "https://", 1)
 
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            respuesta_texto = img_info.get('descripcion', '')
-            
-            filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
-            filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-            
-            audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
-            audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
+        respuesta_texto, archivo_imagen = query_groq_llm(pregunta, history=historial)
 
-            archivo_nombre = img_info.get('archivo')
-            imagen_url = f"{host_url}/images/{archivo_nombre}" if archivo_nombre else None
-
-            return jsonify({
-                'respuesta_texto': respuesta_texto,
-                'audio_url': audio_url,
-                'imagen_url': imagen_url
-            }), 200
-
-        respuesta_texto, error = query_groq_llm(pregunta, search_result=search_result, history=historial)
-        if error:
-            respuesta_texto = f"- No fue posible procesar la consulta: {error}"
+        imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
         filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
         filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
@@ -458,7 +398,7 @@ def api_preguntar():
         return jsonify({
             'respuesta_texto': respuesta_texto,
             'audio_url': audio_url,
-            'imagen_url': None
+            'imagen_url': imagen_url
         }), 200
 
     except Exception as e:
@@ -469,6 +409,7 @@ def api_preguntar():
             'imagen_url': None
         }), 200
 
+# --- ENDPOINT AUDIO ---
 @app.route('/generar-audio', methods=['POST'])
 def api_generar_audio():
     data = request.get_json(silent=True) or {}
@@ -490,6 +431,7 @@ def api_generar_audio():
 
     return jsonify({'audio_url': f"{host_url}/audio/{filename_audio}"})
 
+# --- MANEJADORES TELEGRAM ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te puedo ayudar hoy?", parse_mode="Markdown")
@@ -516,19 +458,15 @@ def handle_voice_message(message):
             bot.reply_to(message, "⚠️ No logré escuchar con claridad el audio.")
             return
 
-        search_result = search_relevant_image(transcribed_text)
-        respuesta_texto, _ = query_groq_llm(transcribed_text, search_result=search_result)
+        respuesta_texto, archivo_imagen = query_groq_llm(transcribed_text)
 
         bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
 
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            archivo = img_info.get('archivo')
-            if archivo:
-                img_path = os.path.join(IMAGE_DIR, archivo)
-                if os.path.exists(img_path):
-                    with open(img_path, "rb") as photo:
-                        bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
+        if archivo_imagen:
+            img_path = os.path.join(IMAGE_DIR, archivo_imagen)
+            if os.path.exists(img_path):
+                with open(img_path, "rb") as photo:
+                    bot.send_photo(message.chat.id, photo)
 
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
@@ -546,19 +484,15 @@ def handle_text_message(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
         
-        search_result = search_relevant_image(message.text)
-        respuesta_texto, _ = query_groq_llm(message.text, search_result=search_result)
+        respuesta_texto, archivo_imagen = query_groq_llm(message.text)
 
         bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
 
-        if search_result.get("type") == "EXACT" and search_result.get("image"):
-            img_info = search_result["image"]
-            archivo = img_info.get('archivo')
-            if archivo:
-                img_path = os.path.join(IMAGE_DIR, archivo)
-                if os.path.exists(img_path):
-                    with open(img_path, "rb") as photo:
-                        bot.send_photo(message.chat.id, photo, caption=f"📸 {img_info.get('titulo', '')}")
+        if archivo_imagen:
+            img_path = os.path.join(IMAGE_DIR, archivo_imagen)
+            if os.path.exists(img_path):
+                with open(img_path, "rb") as photo:
+                    bot.send_photo(message.chat.id, photo)
 
         filename = f"resp_{message.message_id}.mp3"
         filepath = os.path.join(AUDIO_DIR, filename)
