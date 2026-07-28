@@ -19,6 +19,10 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# --- MEMORIA TEMPORAL DE ESTADOS POR USUARIO/CHAT ---
+# Guarda en qué punto del menú está el usuario activo
+USER_STATES = {}
+
 # --- TEXTOS Y MENÚS ESTÁTICOS ---
 
 MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
@@ -65,7 +69,7 @@ AVERIAS_MITSUBISHI_MAP = {
     "14": "14 Un compresor no para"
 }
 
-# --- FUNCIONES AUXILIARES Y LECTURA DE ARCHIVOS ---
+# --- FUNCIONES AUXILIARES ---
 
 def normalize_text(text):
     if not text:
@@ -99,13 +103,9 @@ def get_pdf_text():
             print(f"Error leyendo PDF {pdf}: {e}")
     return full_text
 
-# Carga de contenido PDF en memoria
 PDF_CONTENT = get_pdf_text()
 
 def buscar_contenido_literal(busqueda):
-    """
-    Busca el texto literal dentro de los PDFs cargados.
-    """
     pattern = re.compile(rf"({re.escape(busqueda)}.*?)(?=\n\d+\s+[A-Z]|\Z)", re.DOTALL | re.IGNORECASE)
     match = pattern.search(PDF_CONTENT)
     if match:
@@ -126,43 +126,56 @@ def get_menu_caf6000():
         
     return text, caf_images
 
-# --- LÓGICA DE NAVEGACIÓN Y ÁRBOL DE DECISIÓN ---
+# --- LÓGICA DE NAVEGACIÓN CORREGIDA ---
 
-def procesar_flujo_menu(mensaje_user, estado_actual):
+def procesar_flujo_menu(mensaje_user, user_id="default"):
     msg_raw = mensaje_user.strip()
     msg_clean = normalize_text(msg_raw)
     
-    # Excepción explícita para no interferir con las novedades de Base44
+    # 1. Excepción para Novedades (Base44)
     if msg_clean in ["novedad", "novedades"]:
-        return None, estado_actual, None
+        USER_STATES[user_id] = "INICIO"
+        return None, "INICIO", None
 
-    # Si ingresan comandos para reiniciar
+    # 2. Comando explícito de inicio o reseteo
     if msg_clean in ["hola", "inicio", "menu", "reset", "0"]:
+        USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None
 
-    # Estado INICIO o cuando el usuario escribe cualquier palabra/letra libre que no sea una opción de menú
+    # Obtenemos el estado actual del usuario
+    estado_actual = USER_STATES.get(user_id, "INICIO")
+
+    # Si no hay estado previo o enviaron cualquier texto libre no numérico
     if estado_actual == "INICIO" or not msg_clean.isdigit():
+        USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None
 
-    # --- ESTADO: MENU_PRINCIPAL ---
+    # --- NAVEGACIÓN PASO A PASO ---
+
+    # PASO 1: Eligió opción del Menú Principal
     if estado_actual == "MENU_PRINCIPAL":
         if msg_clean == "1":
+            USER_STATES[user_id] = "MENU_MITSUBISHI"
             return MENU_MITSUBISHI, "MENU_MITSUBISHI", None
         elif msg_clean == "2":
+            USER_STATES[user_id] = "MENU_CAF"
             menu_caf, _ = get_menu_caf6000()
             return menu_caf, "MENU_CAF", None
         else:
             return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None
 
-    # --- ESTADO: MENU_MITSUBISHI ---
+    # PASO 2: Submenú Mitsubishi
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
+            USER_STATES[user_id] = "MITSUBISHI_AVERIAS"
             return MENU_AVERIAS_MITSUBISHI, "MITSUBISHI_AVERIAS", None
         elif msg_clean == "2":
             images = load_imagenes_json()
             mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
             if not mitsu_images:
                 return "No hay esquemas cargados para Mitsubishi.\n\n" + MENU_MITSUBISHI, "MENU_MITSUBISHI", None
+            
+            USER_STATES[user_id] = "MITSUBISHI_ESQUEMAS"
             out = "Ubicación de instrumentos y esquemas Mitsubishi:\n\n"
             for i, img in enumerate(mitsu_images, start=1):
                 out += f"{i} - {img.get('titulo')}\n"
@@ -170,16 +183,17 @@ def procesar_flujo_menu(mensaje_user, estado_actual):
         else:
             return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None
 
-    # --- ESTADO: MITSUBISHI_AVERIAS ---
+    # PASO 3: Selección de una de las 14 Averías Mitsubishi
     if estado_actual == "MITSUBISHI_AVERIAS":
         if msg_clean in AVERIAS_MITSUBISHI_MAP:
             titulo_averia = AVERIAS_MITSUBISHI_MAP[msg_clean]
             respuesta_literal = buscar_contenido_literal(titulo_averia)
+            USER_STATES[user_id] = "INICIO"  # Reinicia estado tras mostrar la respuesta
             return respuesta_literal, "INICIO", None
         else:
             return f"Opción no válida. Por favor ingresá un número del 1 al 14.\n\n{MENU_AVERIAS_MITSUBISHI}", "MITSUBISHI_AVERIAS", None
 
-    # --- ESTADO: MITSUBISHI_ESQUEMAS ---
+    # PASO 4: Esquemas Mitsubishi
     if estado_actual == "MITSUBISHI_ESQUEMAS":
         images = load_imagenes_json()
         mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
@@ -187,27 +201,32 @@ def procesar_flujo_menu(mensaje_user, estado_actual):
             idx = int(msg_clean) - 1
             if 0 <= idx < len(mitsu_images):
                 item = mitsu_images[idx]
+                USER_STATES[user_id] = "INICIO"
                 return item.get("descripcion", ""), "INICIO", item.get("archivo")
         except ValueError:
             pass
         return "Opción no válida. Por favor seleccioná un número de la lista.", "MITSUBISHI_ESQUEMAS", None
 
-    # --- ESTADO: MENU_CAF ---
+    # PASO 5: Opciones CAF 6000
     if estado_actual == "MENU_CAF":
         menu_caf, caf_images = get_menu_caf6000()
         if msg_clean == "1":
             res = buscar_contenido_literal("CAF 6000")
+            USER_STATES[user_id] = "INICIO"
             return res, "INICIO", None
         else:
             try:
                 opc_idx = int(msg_clean) - 2
                 if 0 <= opc_idx < len(caf_images):
                     item = caf_images[opc_idx]
+                    USER_STATES[user_id] = "INICIO"
                     return item.get("descripcion", ""), "INICIO", item.get("archivo")
             except ValueError:
                 pass
             return f"Opción no válida.\n\n{menu_caf}", "MENU_CAF", None
 
+    # Por defecto ante cualquier inconsistencia, reinicia al Menú Principal
+    USER_STATES[user_id] = "MENU_PRINCIPAL"
     return MENU_INICIAL, "MENU_PRINCIPAL", None
 
 # --- GENERACIÓN DE AUDIO (TTS) ---
@@ -231,7 +250,7 @@ def generate_voice_file(text, output_file):
         print(f"Error generando audio TTS: {e}")
         return False
 
-# --- RUTAS DE LA API FLASK ---
+# --- API ENDPOINTS ---
 
 @app.route('/', methods=['GET'])
 def health_check():
@@ -245,15 +264,15 @@ def api_preguntar():
     try:
         data = request.get_json(silent=True) or {}
         pregunta = data.get('pregunta') or data.get('message') or data.get('text') or ''
-        estado = data.get('estado', 'INICIO')
+        user_id = data.get('user_id') or data.get('sender') or 'usuario_unico'
 
-        respuesta_texto, nuevo_estado, archivo_imagen = procesar_flujo_menu(pregunta, estado)
+        respuesta_texto, nuevo_estado, archivo_imagen = procesar_flujo_menu(pregunta, user_id=user_id)
 
         if respuesta_texto is None:
             return jsonify({
                 'passthrough': True,
                 'respuesta_texto': None,
-                'nuevo_estado': estado
+                'nuevo_estado': 'INICIO'
             }), 200
 
         host_url = request.host_url.rstrip('/')
