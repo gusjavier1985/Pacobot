@@ -1,15 +1,12 @@
 import os
 import glob
-import threading
-import requests
-import asyncio
 import re
 import uuid
 import json
 import unicodedata
+import asyncio
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import telebot
 from pypdf import PdfReader
 import edge_tts
 
@@ -22,26 +19,53 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-@app.route('/', methods=['GET'])
-def health_check():
-    return "Bot Paco API OK", 200
+# --- TEXTOS Y MENÚS ESTÁTICOS ---
 
-@app.route('/audio/<filename>', methods=['GET'])
-def get_audio(filename):
-    response = send_from_directory(AUDIO_DIR, filename)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
+MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
 
-@app.route('/images/<filename>', methods=['GET'])
-def get_image(filename):
-    response = send_from_directory(IMAGE_DIR, filename)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
+1 - Mitsubishi
+2 - CAF 6000"""
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+MENU_MITSUBISHI = """Opciones para Mitsubishi:
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+1 - Averías
+2 - Ubicación de instrumentos / Esquemas"""
+
+MENU_AVERIAS_MITSUBISHI = """Seleccioná el número de la avería de Mitsubishi:
+
+1 - Falla Fatal de ATP
+2 - Ausencia de velocidad objetivo o velocidad objetivo cero
+3 - BP no carga
+4 - No se puede conducir desde la cabina delantera
+5 - Seccionar en plataforma
+6 - Tren no arranca con luz de aviso apagada
+7 - Tren no arranca con luz de aviso encendida
+8 - Luz de BO
+9 - Luz de BO y OLR
+10 - Puertas no abren
+11 - Puertas no cierran
+12 - Alarma sonora no funciona
+13 - Temporizador
+14 - Un compresor no para"""
+
+AVERIAS_MITSUBISHI_MAP = {
+    "1": "1 Falla Fatal de ATP",
+    "2": "2 Ausencia de velocidad objetivo o velocidad objetivo cero",
+    "3": "3 BP no carga",
+    "4": "4 No se puede conducir desde la cabina delantera",
+    "5": "5 Seccionar en plataforma",
+    "6": "6 Tren no arranca con luz de aviso apagada",
+    "7": "7 Tren no arranca con luz de aviso encendida",
+    "8": "8 Luz de BO",
+    "9": "9 Luz de BO y OLR",
+    "10": "10 Puertas no abren",
+    "11": "11 Puertas no cierran",
+    "12": "12 Alarma sonora no funciona",
+    "13": "13 Temporizador",
+    "14": "14 Un compresor no para"
+}
+
+# --- FUNCIONES AUXILIARES Y LECTURA DE ARCHIVOS ---
 
 def normalize_text(text):
     if not text:
@@ -49,146 +73,6 @@ def normalize_text(text):
     text = unicodedata.normalize('NFD', text)
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
     return text.lower().strip()
-
-def check_direct_intents(query):
-    q_norm = normalize_text(query)
-    
-    paco_patterns = [
-        "por que paco", "porque paco", "por que te llamas paco", 
-        "porque te llamas paco", "que significa paco", "de donde viene paco", 
-        "por que el nombre paco", "porque el nombre paco", "quien es paco"
-    ]
-    if any(p in q_norm for p in paco_patterns):
-        return "Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)."
-
-    saludos = ["hola", "buen dia", "buenos dias", "buenas tardes", "buenas noches", "buenas", "saludos", "hola paco", "que tal"]
-    words = q_norm.split()
-    
-    es_saludo_puro = q_norm in saludos or (len(words) <= 2 and any(w in saludos for w in words))
-    if es_saludo_puro:
-        return "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
-
-    return None
-
-# Indexación RAG etiquetando explícitamente el modelo de tren
-print("Indexando manuales técnicos completos...")
-chunks = []
-pdf_files = sorted(glob.glob(os.path.join(BASE_DIR, "*.pdf")))
-
-for pdf in pdf_files:
-    try:
-        filename_lower = os.path.basename(pdf).lower()
-        if "caf" in filename_lower:
-            model_tag = "CAF 6000"
-        elif "mitsu" in filename_lower:
-            model_tag = "Mitsubishi"
-        else:
-            model_tag = "General"
-
-        reader = PdfReader(pdf)
-        full_text = ""
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                full_text += t + "\n"
-        
-        clean_text = re.sub(r'\s+', ' ', full_text).strip()
-        words = clean_text.split(" ")
-        
-        current_chunk = []
-        current_len = 0
-        for word in words:
-            current_chunk.append(word)
-            current_len += len(word) + 1
-            if current_len >= 1200:
-                chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
-                chunks.append(chunk_str)
-                current_chunk = current_chunk[-30:]
-                current_len = sum(len(w) + 1 for w in current_chunk)
-        if current_chunk:
-            chunk_str = f"[MODELO: {model_tag}] " + " ".join(current_chunk)
-            chunks.append(chunk_str)
-    except Exception as e:
-        print(f"Error procesando {pdf}: {e}")
-
-if not chunks:
-    chunks = ["No hay manuales cargados en el sistema."]
-
-print(f"Indexación completa. Total de fragmentos: {len(chunks)}")
-
-SYNONYMS = {
-    "prender": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando", "bateria", "disyuntor", "preparacion"],
-    "prendido": ["encendido", "puesta en servicio", "energizacion", "arranque", "mando"],
-    "encender": ["encendido", "puesta en servicio", "energizacion", "mando"],
-    "grifo": ["llave", "grifo", "valvula", "aislar", "puerta"],
-    "matafuego": ["extintor", "matafuego", "fuego"],
-    "matafuegos": ["extintor", "matafuego", "fuego"],
-    "escalera": ["escalera", "evacuacion", "emergencia"]
-}
-
-def analyze_models_in_chunks(query):
-    stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
-    query_norm = normalize_text(query)
-    words = re.findall(r'\b\w+\b', query_norm)
-    keywords = [w for w in words if w not in stopwords and len(w) > 1]
-
-    expanded_keywords = set(keywords)
-    for kw in keywords:
-        if kw in SYNONYMS:
-            expanded_keywords.update(SYNONYMS[kw])
-
-    mitsu_found = False
-    caf_found = False
-
-    for chunk in chunks:
-        chunk_norm = normalize_text(chunk)
-        score = sum(1 for kw in expanded_keywords if kw in chunk_norm)
-        if score >= 1:
-            if "[modelo: mitsubishi]" in chunk_norm:
-                mitsu_found = True
-            elif "[modelo: caf 6000]" in chunk_norm:
-                caf_found = True
-
-    return mitsu_found, caf_found
-
-def search_relevant_chunks(query, target_model=None, top_k=10):
-    stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
-    query_norm = normalize_text(query)
-    words = re.findall(r'\b\w+\b', query_norm)
-    keywords = [w for w in words if w not in stopwords and len(w) > 1]
-
-    if not target_model:
-        if any(m in query_norm for m in ["caf", "6000", "sicas", "microcef"]):
-            target_model = "CAF 6000"
-        elif any(m in query_norm for m in ["mitsubishi", "mitsu", "nfb", "atp"]):
-            target_model = "Mitsubishi"
-
-    expanded_keywords = set(keywords)
-    for kw in keywords:
-        if kw in SYNONYMS:
-            expanded_keywords.update(SYNONYMS[kw])
-
-    scored_chunks = []
-    for chunk in chunks:
-        chunk_norm = normalize_text(chunk)
-        score = sum(1 for kw in expanded_keywords if kw in chunk_norm)
-        
-        if target_model:
-            if f"[modelo: {target_model.lower()}]" in chunk_norm:
-                score += 5
-            elif "[modelo: general]" not in chunk_norm:
-                score -= 5
-
-        if score > 0:
-            scored_chunks.append((score, chunk))
-
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
-    
-    relevant_text = ""
-    for score, chunk in scored_chunks[:top_k]:
-        relevant_text += f"\n{chunk}\n"
-
-    return relevant_text if relevant_text else "No se encontraron detalles específicos en los manuales."
 
 def load_imagenes_json():
     for candidate in ["imagenes.json", "Imagenes.json", "IMAGENES.JSON"]:
@@ -199,41 +83,144 @@ def load_imagenes_json():
                     return json.load(f)
             except Exception as e:
                 print(f"Error leyendo {json_path}: {e}")
-    return None
+    return []
 
-def search_relevant_image_by_title(query):
-    images_db = load_imagenes_json()
-    if not images_db:
-        return None
+def get_pdf_text():
+    full_text = ""
+    pdf_files = sorted(glob.glob(os.path.join(BASE_DIR, "*.pdf")))
+    for pdf in pdf_files:
+        try:
+            reader = PdfReader(pdf)
+            for page in reader.pages:
+                t = page.extract_text()
+                if t:
+                    full_text += t + "\n"
+        except Exception as e:
+            print(f"Error leyendo PDF {pdf}: {e}")
+    return full_text
 
-    query_norm = normalize_text(query)
-    target_model = None
-    if "mitsubishi" in query_norm or "mitsu" in query_norm:
-        target_model = "Mitsubishi"
-    elif "caf" in query_norm or "6000" in query_norm:
-        target_model = "CAF 6000"
+# Carga de contenido PDF en memoria
+PDF_CONTENT = get_pdf_text()
 
-    for item in images_db:
-        titulo_norm = normalize_text(item.get("titulo", ""))
-        item_model = item.get("modelo", "")
+def buscar_contenido_literal(busqueda):
+    """
+    Busca el texto literal dentro de los PDFs cargados.
+    """
+    pattern = re.compile(rf"({re.escape(busqueda)}.*?)(?=\n\d+\s+[A-Z]|\Z)", re.DOTALL | re.IGNORECASE)
+    match = pattern.search(PDF_CONTENT)
+    if match:
+        return match.group(1).strip()
+    return f"Información técnica completa para: {busqueda}\n\n{PDF_CONTENT[:1500]}..."
 
-        if target_model and item_model and item_model != target_model:
-            continue
+def get_menu_caf6000():
+    images = load_imagenes_json()
+    caf_images = [img for img in images if img.get("modelo") == "CAF 6000"]
+    
+    text = "Opciones disponibles para CAF 6000:\n\n"
+    text += "1 - Procedimientos generales de averías (Manual PDF)\n"
+    
+    idx = 2
+    for img in caf_images:
+        text += f"{idx} - {img.get('titulo', 'Esquema / Imagen CAF')}\n"
+        idx += 1
+        
+    return text, caf_images
 
-        if titulo_norm and (titulo_norm == query_norm or titulo_norm in query_norm or query_norm in titulo_norm):
-            return item
+# --- LÓGICA DE NAVEGACIÓN Y ÁRBOL DE DECISIÓN ---
 
-    return None
+def procesar_flujo_menu(mensaje_user, estado_actual):
+    msg_raw = mensaje_user.strip()
+    msg_clean = normalize_text(msg_raw)
+    
+    # Excepción explícita para no interferir con las novedades de Base44
+    if msg_clean in ["novedad", "novedades"]:
+        return None, estado_actual, None
+
+    # Si ingresan comandos para reiniciar
+    if msg_clean in ["hola", "inicio", "menu", "reset", "0"]:
+        return MENU_INICIAL, "MENU_PRINCIPAL", None
+
+    # Estado INICIO o cuando el usuario escribe cualquier palabra/letra libre que no sea una opción de menú
+    if estado_actual == "INICIO" or not msg_clean.isdigit():
+        return MENU_INICIAL, "MENU_PRINCIPAL", None
+
+    # --- ESTADO: MENU_PRINCIPAL ---
+    if estado_actual == "MENU_PRINCIPAL":
+        if msg_clean == "1":
+            return MENU_MITSUBISHI, "MENU_MITSUBISHI", None
+        elif msg_clean == "2":
+            menu_caf, _ = get_menu_caf6000()
+            return menu_caf, "MENU_CAF", None
+        else:
+            return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None
+
+    # --- ESTADO: MENU_MITSUBISHI ---
+    if estado_actual == "MENU_MITSUBISHI":
+        if msg_clean == "1":
+            return MENU_AVERIAS_MITSUBISHI, "MITSUBISHI_AVERIAS", None
+        elif msg_clean == "2":
+            images = load_imagenes_json()
+            mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
+            if not mitsu_images:
+                return "No hay esquemas cargados para Mitsubishi.\n\n" + MENU_MITSUBISHI, "MENU_MITSUBISHI", None
+            out = "Ubicación de instrumentos y esquemas Mitsubishi:\n\n"
+            for i, img in enumerate(mitsu_images, start=1):
+                out += f"{i} - {img.get('titulo')}\n"
+            return out, "MITSUBISHI_ESQUEMAS", None
+        else:
+            return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None
+
+    # --- ESTADO: MITSUBISHI_AVERIAS ---
+    if estado_actual == "MITSUBISHI_AVERIAS":
+        if msg_clean in AVERIAS_MITSUBISHI_MAP:
+            titulo_averia = AVERIAS_MITSUBISHI_MAP[msg_clean]
+            respuesta_literal = buscar_contenido_literal(titulo_averia)
+            return respuesta_literal, "INICIO", None
+        else:
+            return f"Opción no válida. Por favor ingresá un número del 1 al 14.\n\n{MENU_AVERIAS_MITSUBISHI}", "MITSUBISHI_AVERIAS", None
+
+    # --- ESTADO: MITSUBISHI_ESQUEMAS ---
+    if estado_actual == "MITSUBISHI_ESQUEMAS":
+        images = load_imagenes_json()
+        mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
+        try:
+            idx = int(msg_clean) - 1
+            if 0 <= idx < len(mitsu_images):
+                item = mitsu_images[idx]
+                return item.get("descripcion", ""), "INICIO", item.get("archivo")
+        except ValueError:
+            pass
+        return "Opción no válida. Por favor seleccioná un número de la lista.", "MITSUBISHI_ESQUEMAS", None
+
+    # --- ESTADO: MENU_CAF ---
+    if estado_actual == "MENU_CAF":
+        menu_caf, caf_images = get_menu_caf6000()
+        if msg_clean == "1":
+            res = buscar_contenido_literal("CAF 6000")
+            return res, "INICIO", None
+        else:
+            try:
+                opc_idx = int(msg_clean) - 2
+                if 0 <= opc_idx < len(caf_images):
+                    item = caf_images[opc_idx]
+                    return item.get("descripcion", ""), "INICIO", item.get("archivo")
+            except ValueError:
+                pass
+            return f"Opción no válida.\n\n{menu_caf}", "MENU_CAF", None
+
+    return MENU_INICIAL, "MENU_PRINCIPAL", None
+
+# --- GENERACIÓN DE AUDIO (TTS) ---
 
 def generate_voice_file(text, output_file):
-    clean_text = text.replace("*", "").replace("#", "").replace("`", "").replace("_", "").replace("•", "")
+    if not text:
+        return False
+    clean_text = re.sub(r'[*#`_•-]', '', text)
     if not clean_text.strip():
         return False
-
     async def _generate():
         communicate = edge_tts.Communicate(clean_text, "es-AR-TomasNeural")
         await communicate.save(output_file)
-    
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -244,119 +231,12 @@ def generate_voice_file(text, output_file):
         print(f"Error generando audio TTS: {e}")
         return False
 
-def query_groq_llm(user_prompt, target_model=None, history=None):
-    clean_user_input = user_prompt.strip()
+# --- RUTAS DE LA API FLASK ---
 
-    if clean_user_input in ["1", "2"] and history and len(history) >= 2:
-        last_assistant_msg = ""
-        last_user_msg = ""
-        for msg in reversed(history):
-            if isinstance(msg, dict):
-                if msg.get("role") == "assistant" and not last_assistant_msg:
-                    last_assistant_msg = msg.get("content", "")
-                elif msg.get("role") == "user" and not last_user_msg and msg.get("content", "").strip() not in ["1", "2"]:
-                    last_user_msg = msg.get("content", "")
-            if last_assistant_msg and last_user_msg:
-                break
+@app.route('/', methods=['GET'])
+def health_check():
+    return "Bot Paco API Activo", 200
 
-        if "Opción 1: Ver el procedimiento" in last_assistant_msg:
-            if clean_user_input == "1":
-                user_prompt = last_user_msg
-            else:
-                img_item = search_relevant_image_by_title(last_user_msg)
-                if img_item:
-                    return img_item.get('descripcion', ''), img_item.get('archivo')
-                return "No se encontró una imagen asociada.", None
-
-        if "Para el Mitsubishi enviar 1" in last_assistant_msg or "enviar 1" in last_assistant_msg:
-            target_model = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
-            user_prompt = last_user_msg
-
-    direct_response = check_direct_intents(user_prompt)
-    if direct_response:
-        return direct_response, None
-
-    if not GROQ_API_KEY:
-        return "- Error: No se ha configurado la clave GROQ_API_KEY en Render.", None
-
-    if not target_model and clean_user_input not in ["1", "2"]:
-        q_norm = normalize_text(user_prompt)
-        has_mitsu = "mitsubishi" in q_norm or "mitsu" in q_norm
-        has_caf = "caf" in q_norm or "6000" in q_norm
-
-        if not has_mitsu and not has_caf:
-            in_mitsu, in_caf = analyze_models_in_chunks(user_prompt)
-            if in_mitsu and in_caf:
-                return f"Si te referís a la consulta:\n\n• Para el Mitsubishi enviar 1\n• Para el CAF 6000 enviar 2", None
-            elif in_mitsu:
-                target_model = "Mitsubishi"
-            elif in_caf:
-                target_model = "CAF 6000"
-
-    img_match = search_relevant_image_by_title(user_prompt)
-    if img_match and clean_user_input not in ["1", "2"]:
-        q_norm = normalize_text(user_prompt)
-        if any(w in q_norm for w in ["foto", "imagen", "ver imagen", "esquema"]):
-            return img_match.get('descripcion', ''), img_match.get('archivo')
-        else:
-            return (f"Para la consulta se encontraron dos opciones disponibles:\n\n"
-                    f"• Opción 1: Ver el procedimiento / resolución de la falla\n"
-                    f"• Opción 2: Ver la imagen explicativa\n\n"
-                    f"Por favor indicá 1 o 2."), None
-
-    relevant_context = search_relevant_chunks(user_prompt, target_model=target_model, top_k=10)
-
-    system_instruction = f"""
-    Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte (Línea B).
-
-    REGLAS STRICTAS E INVIOLABLES DE RESPUESTA:
-    1. SI TE PREGUNTAN QUÉ AVERÍAS O FALLAS TIENE UN TREN (Mitsubishi o CAF 6000):
-       - DEBES listar TODAS las averías y títulos de fallas que figuren en el manual provisto para ese modelo, sin omitir ninguna.
-    2. TRANSCRIBE ÚNICAMENTE LO QUE FIGURA LITERALMENTE EN EL MANUAL PROVISTO.
-    3. PROHIBIDO TOTALMENTE INVENTAR PASOS, DIAGNÓSTICOS, SISTEMAS O COMPONENTES QUE NO ESTÉN EN EL TEXTO.
-    4. MANTÉN EL FORMATO Y VIÑETAS ORIGINALES DEL MANUAL.
-    5. NO agregues saludos, frases de cortesía, ni frases tipo "Según el manual..." ni "Para solucionar...". Ve DIRECTO a la información.
-    6. Si la información no se encuentra en el texto provisto, responde strictly:
-       "- No dispongo de la información exacta para esa consulta en los manuales cargados."
-
-    CONTENIDO EXTRAÍDO DE LOS MANUALES:
-    {relevant_context}
-    """
-
-    messages = [{"role": "system", "content": system_instruction}]
-
-    if history and isinstance(history, list):
-        clean_history = []
-        for msg in history[-6:]:
-            if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                clean_history.append({"role": msg["role"], "content": msg["content"]})
-        messages.extend(clean_history)
-
-    messages.append({"role": "user", "content": user_prompt})
-
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY.strip()}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "llama-3.1-8b-instant",
-        "messages": messages,
-        "temperature": 0.0
-    }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        if response.status_code == 200:
-            raw_text = response.json()['choices'][0]['message']['content']
-            return raw_text, None
-        else:
-            err = response.json().get('error', {}).get('message', 'Error en la consulta')
-            return f"- Error desde Groq ({response.status_code}): {err}", None
-    except Exception as e:
-        return f"- Error de conexión con el servicio de IA: {str(e)}", None
-
-# --- ENDPOINT CHAT ---
 @app.route('/preguntar', methods=['POST', 'OPTIONS'])
 def api_preguntar():
     if request.method == 'OPTIONS':
@@ -364,151 +244,54 @@ def api_preguntar():
 
     try:
         data = request.get_json(silent=True) or {}
-        pregunta = data.get('pregunta') or data.get('message') or data.get('text') or data.get('query') or ''
-        historial = data.get('historial', [])
-        
-        if not pregunta:
+        pregunta = data.get('pregunta') or data.get('message') or data.get('text') or ''
+        estado = data.get('estado', 'INICIO')
+
+        respuesta_texto, nuevo_estado, archivo_imagen = procesar_flujo_menu(pregunta, estado)
+
+        if respuesta_texto is None:
             return jsonify({
-                'respuesta_texto': '- Por favor escribí una consulta.',
-                'audio_url': None,
-                'imagen_url': None
+                'passthrough': True,
+                'respuesta_texto': None,
+                'nuevo_estado': estado
             }), 200
 
         host_url = request.host_url.rstrip('/')
         if host_url.startswith("http://"):
             host_url = host_url.replace("http://", "https://", 1)
 
-        respuesta_texto, archivo_imagen = query_groq_llm(pregunta, history=historial)
-
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
         filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
         filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-        
         audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
         audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
 
         return jsonify({
             'respuesta_texto': respuesta_texto,
+            'nuevo_estado': nuevo_estado,
             'audio_url': audio_url,
             'imagen_url': imagen_url
         }), 200
 
     except Exception as e:
-        print(f"Error crítico en /preguntar: {str(e)}")
+        print(f"Error en /preguntar: {str(e)}")
         return jsonify({
-            'respuesta_texto': f"- Error interno del servidor: {str(e)}",
+            'respuesta_texto': f"Error interno: {str(e)}",
+            'nuevo_estado': 'INICIO',
             'audio_url': None,
             'imagen_url': None
         }), 200
 
-# --- ENDPOINT AUDIO ---
-@app.route('/generar-audio', methods=['POST'])
-def api_generar_audio():
-    data = request.get_json(silent=True) or {}
-    texto = data.get('texto', '')
-    
-    if not texto:
-        return jsonify({'error': 'Debes enviar el campo "texto"'}), 400
+@app.route('/audio/<filename>', methods=['GET'])
+def get_audio(filename):
+    return send_from_directory(AUDIO_DIR, filename)
 
-    filename_audio = f"audio_nov_{uuid.uuid4().hex[:8]}.mp3"
-    filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-    audio_ok = generate_voice_file(texto, filepath_audio)
-
-    if not audio_ok:
-        return jsonify({'error': 'No se pudo generar el audio'}), 500
-
-    host_url = request.host_url.rstrip('/')
-    if host_url.startswith("http://"):
-        host_url = host_url.replace("http://", "https://", 1)
-
-    return jsonify({'audio_url': f"{host_url}/audio/{filename_audio}"})
-
-# --- MANEJADORES TELEGRAM ---
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te puedo ayudar hoy?", parse_mode="Markdown")
-
-@bot.message_handler(content_types=['voice'])
-def handle_voice_message(message):
-    try:
-        bot.send_chat_action(message.chat.id, 'typing')
-        file_info = bot.get_file(message.voice.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        
-        transcribe_url = "https://api.groq.com/openai/v1/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY.strip()}"}
-        files = {'file': ('voice.ogg', downloaded_file, 'audio/ogg')}
-        data = {'model': 'whisper-large-v3', 'language': 'es'}
-        
-        trans_resp = requests.post(transcribe_url, headers=headers, files=files, data=data, timeout=20)
-        if trans_resp.status_code != 200:
-            bot.reply_to(message, "⚠️ Error procesando nota de voz.")
-            return
-            
-        transcribed_text = trans_resp.json().get('text', '')
-        if not transcribed_text:
-            bot.reply_to(message, "⚠️ No logré escuchar con claridad el audio.")
-            return
-
-        respuesta_texto, archivo_imagen = query_groq_llm(transcribed_text)
-
-        bot.reply_to(message, f"🎤 *Escuché:* \"{transcribed_text}\"\n\n{respuesta_texto}", parse_mode="Markdown")
-
-        if archivo_imagen:
-            img_path = os.path.join(IMAGE_DIR, archivo_imagen)
-            if os.path.exists(img_path):
-                with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo)
-
-        filename = f"resp_{message.message_id}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        if generate_voice_file(respuesta_texto, filepath):
-            with open(filepath, "rb") as audio:
-                bot.send_voice(message.chat.id, audio)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Error procesando nota de voz: {str(e)}")
-
-@bot.message_handler(func=lambda message: True)
-def handle_text_message(message):
-    try:
-        bot.send_chat_action(message.chat.id, 'typing')
-        
-        respuesta_texto, archivo_imagen = query_groq_llm(message.text)
-
-        bot.reply_to(message, respuesta_texto, parse_mode="Markdown")
-
-        if archivo_imagen:
-            img_path = os.path.join(IMAGE_DIR, archivo_imagen)
-            if os.path.exists(img_path):
-                with open(img_path, "rb") as photo:
-                    bot.send_photo(message.chat.id, photo)
-
-        filename = f"resp_{message.message_id}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        if generate_voice_file(respuesta_texto, filepath):
-            with open(filepath, "rb") as audio:
-                bot.send_voice(message.chat.id, audio)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Error: {str(e)}")
-
-def run_telegram_bot():
-    try:
-        print("Iniciando Bot de Telegram...")
-        bot.polling(non_stop=True, timeout=30)
-    except Exception as e:
-        print(f"Error en hilo de Telegram: {e}")
-
-bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-bot_thread.start()
+@app.route('/images/<filename>', methods=['GET'])
+def get_image(filename):
+    return send_from_directory(IMAGE_DIR, filename)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    print(f"🤖 Paco API & Bot ejecutándose en el puerto {port}...")
+    print(f"🤖 Bot Paco en ejecución en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
