@@ -19,7 +19,7 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Memoria de estado para navegación
+# Memoria de estado para navegación por chat
 USER_STATES = {}
 
 # --- MENÚS ESTÁTICOS ---
@@ -68,7 +68,7 @@ AVERIAS_MITSUBISHI_MAP = {
     "14": "14 Un compresor no para"
 }
 
-# --- MENÚ Y DICCIONARIOS DEL CAF 6000 ---
+# --- MENÚ Y SUBMENÚ CAF 6000 ---
 
 MENU_CAF6000 = """Seleccioná una opción para CAF 6000:
 
@@ -129,22 +129,17 @@ Descender los pasajeros en el primer anden.
 Con menos de 6,5 kg/cm² identificar la pérdida y seccionar neumáticamente."""
 }
 
-# Textos directos para las primeras opciones de texto cargadas
-TEXTOS_DIRECTOS_CAF = {
-    "1": "PROCEDIMIENTO ANTE UNA AVERÍA:\n\n(Aquí va el procedimiento general cargado)",
-    "3": "PUERTAS NO ABREN:\n\n(Procedimiento ante falla de apertura de puertas)",
-    "4": "PUERTAS NO CIERRAN:\n\n(Procedimiento ante falla de cierre de puertas)",
-    "5": "ENCENDER UNA FORMACIÓN CAF 6000:\n\n(Pasos de encendido)",
-    "6": "APAGAR UNA FORMACIÓN CAF 6000:\n\n(Pasos de apagado)",
-    "7": "COCHE FRENADO - POR UNIDAD DE FRENO:\n\n(Procedimiento unidad de freno)",
-    "8": "COCHE FRENADO - POR MICROCEF:\n\n(Procedimiento por Microcef)",
-    "9": "BOCINA TRABADA:\n\n(Procedimiento bocina trabada)",
-    "10": "BAJAR UN PANTÓGRAFO:\n\n(Procedimiento para bajar pantógrafo)",
-    "11": "SECCIONAMIENTO NEUMÁTICO:\n\n(Procedimiento de seccionamiento neumático)"
-}
-
-# MAPEO DE OPCIONES DE IMAGEN PARA EL CAF 6000 (Opciones 12 a 18)
-MAPA_IMAGENES_CAF = {
+MAPA_TITULOS_CAF = {
+    "1": "PROCEDIMIENTO ANTE UNA AVERÍA",
+    "3": "PUERTAS NO ABREN",
+    "4": "PUERTAS NO CIERRAN",
+    "5": "ENCENDER UNA FORMACIÓN CAF 6000",
+    "6": "APAGAR UNA FORMACIÓN CAF 6000",
+    "7": "COCHE FRENADO - POR UNIDAD DE FRENO",
+    "8": "COCHE FRENADO - POR MICROCEF",
+    "9": "BOCINA TRABADA",
+    "10": "BAJAR UN PANTÓGRAFO",
+    "11": "SECCIONAMIENTO NEUMÁTICO",
     "12": "ESQUEMA DE UBICACIÓN DE ELEMENTOS",
     "13": "PANEL NEUMÁTICO DE CABINA",
     "14": "PANEL NEUMÁTICO COCHE REMOLQUE",
@@ -197,79 +192,95 @@ def buscar_contenido_literal(busqueda):
         return match.group(1).strip()
     return f"Información técnica para: {busqueda}\n\n{PDF_CONTENT[:1500]}..."
 
-def obtener_imagen_caf_por_titulo(titulo_buscar):
+def obtener_item_caf_por_titulo_o_indice(num_opcion):
     images = load_imagenes_json()
-    titulo_norm = normalize_text(titulo_buscar)
-    for img in images:
-        if img.get("modelo") == "CAF 6000":
-            if normalize_text(img.get("titulo", "")) == titulo_norm or titulo_norm in normalize_text(img.get("titulo", "")):
-                return img.get("descripcion", ""), img.get("archivo")
-    return f"Esquema: {titulo_buscar}", None
+    caf_items = [img for img in images if img.get("modelo") == "CAF 6000"]
+    titulo_buscado = MAPA_TITULOS_CAF.get(num_opcion, "")
+    titulo_norm = normalize_text(titulo_buscado)
 
-# --- LÓGICA DE NAVEGACIÓN COMPLETA ---
+    # 1. Buscar coincidencia por título en imagenes.json
+    for img in caf_items:
+        t_json = normalize_text(img.get("titulo", ""))
+        if titulo_norm and (titulo_norm in t_json or t_json in titulo_norm):
+            desc = img.get("descripcion") or img.get("titulo") or titulo_buscado
+            return desc, img.get("archivo")
+
+    # 2. Si no coincide el título exacto, buscar por índice de lista
+    try:
+        idx = int(num_opcion) - 1
+        if 0 <= idx < len(caf_items):
+            item = caf_items[idx]
+            desc = item.get("descripcion") or item.get("titulo") or titulo_buscado
+            return desc, item.get("archivo")
+    except ValueError:
+        pass
+
+    return f"Información sobre: {titulo_buscado}", None
+
+# --- LÓGICA DE NAVEGACIÓN ---
 
 def procesar_flujo_menu(mensaje_user, user_id="default"):
     msg_raw = mensaje_user.strip()
     msg_clean = normalize_text(msg_raw)
     
-    # 1. Excepción para Novedades (Base44)
+    # Excepción para Novedades (Base44)
     if msg_clean in ["novedad", "novedades"]:
         USER_STATES[user_id] = "INICIO"
-        return None, "INICIO", None
+        return None, "INICIO", None, False
 
-    # 2. Comando explícito de inicio o reseteo
+    # Comando explícito de inicio o reseteo
     if msg_clean in ["hola", "inicio", "menu", "reset", "0"]:
         USER_STATES[user_id] = "MENU_PRINCIPAL"
-        return MENU_INICIAL, "MENU_PRINCIPAL", None
+        return MENU_INICIAL, "MENU_PRINCIPAL", None, False
 
     estado_actual = USER_STATES.get(user_id, "INICIO")
 
-    # Si entra cualquier texto que no sea un número o no hay estado previo
+    # Si ingresan texto libre o no hay estado
     if estado_actual == "INICIO" or not msg_clean.isdigit():
         USER_STATES[user_id] = "MENU_PRINCIPAL"
-        return MENU_INICIAL, "MENU_PRINCIPAL", None
+        return MENU_INICIAL, "MENU_PRINCIPAL", None, False
 
     # --- MENU PRINCIPAL ---
     if estado_actual == "MENU_PRINCIPAL":
         if msg_clean == "1":
             USER_STATES[user_id] = "MENU_MITSUBISHI"
-            return MENU_MITSUBISHI, "MENU_MITSUBISHI", None
+            return MENU_MITSUBISHI, "MENU_MITSUBISHI", None, False
         elif msg_clean == "2":
             USER_STATES[user_id] = "MENU_CAF"
-            return MENU_CAF6000, "MENU_CAF", None
+            return MENU_CAF6000, "MENU_CAF", None, False
         else:
-            return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None
+            return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None, False
 
     # --- SUBMENÚ MITSUBISHI ---
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
             USER_STATES[user_id] = "MITSUBISHI_AVERIAS"
-            return MENU_AVERIAS_MITSUBISHI, "MITSUBISHI_AVERIAS", None
+            return MENU_AVERIAS_MITSUBISHI, "MITSUBISHI_AVERIAS", None, False
         elif msg_clean == "2":
             images = load_imagenes_json()
             mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
             if not mitsu_images:
-                return "No hay esquemas cargados para Mitsubishi.\n\n" + MENU_MITSUBISHI, "MENU_MITSUBISHI", None
+                return "No hay esquemas cargados para Mitsubishi.\n\n" + MENU_MITSUBISHI, "MENU_MITSUBISHI", None, False
             
             USER_STATES[user_id] = "MITSUBISHI_ESQUEMAS"
             out = "Ubicación de instrumentos y esquemas Mitsubishi:\n\n"
             for i, img in enumerate(mitsu_images, start=1):
                 out += f"{i} - {img.get('titulo')}\n"
-            return out, "MITSUBISHI_ESQUEMAS", None
+            return out, "MITSUBISHI_ESQUEMAS", None, False
         else:
-            return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None
+            return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None, False
 
-    # --- MITSUBISHI AVERÍAS ---
+    # --- RESPUESTA FINAL: MITSUBISHI AVERÍAS ---
     if estado_actual == "MITSUBISHI_AVERIAS":
         if msg_clean in AVERIAS_MITSUBISHI_MAP:
             titulo_averia = AVERIAS_MITSUBISHI_MAP[msg_clean]
             respuesta_literal = buscar_contenido_literal(titulo_averia)
             USER_STATES[user_id] = "INICIO"
-            return respuesta_literal, "INICIO", None
+            return respuesta_literal, "INICIO", None, True  # Genera Audio
         else:
-            return f"Opción no válida. Por favor ingresá un número del 1 al 14.\n\n{MENU_AVERIAS_MITSUBISHI}", "MITSUBISHI_AVERIAS", None
+            return f"Opción no válida. Por favor ingresá un número del 1 al 14.\n\n{MENU_AVERIAS_MITSUBISHI}", "MITSUBISHI_AVERIAS", None, False
 
-    # --- MITSUBISHI ESQUEMAS ---
+    # --- RESPUESTA FINAL: MITSUBISHI ESQUEMAS ---
     if estado_actual == "MITSUBISHI_ESQUEMAS":
         images = load_imagenes_json()
         mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
@@ -278,39 +289,34 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
             if 0 <= idx < len(mitsu_images):
                 item = mitsu_images[idx]
                 USER_STATES[user_id] = "INICIO"
-                return item.get("descripcion", ""), "INICIO", item.get("archivo")
+                return item.get("descripcion", ""), "INICIO", item.get("archivo"), True  # Genera Audio
         except ValueError:
             pass
-        return "Opción no válida. Por favor seleccioná un número de la lista.", "MITSUBISHI_ESQUEMAS", None
+        return "Opción no válida. Por favor seleccioná un número de la lista.", "MITSUBISHI_ESQUEMAS", None, False
 
     # --- MENÚ CAF 6000 ---
     if estado_actual == "MENU_CAF":
         if msg_clean == "2":
             USER_STATES[user_id] = "CAF_LAZO"
-            return SUBMENU_CAF_LAZO, "CAF_LAZO", None
-        elif msg_clean in TEXTOS_DIRECTOS_CAF:
-            text = TEXTOS_DIRECTOS_CAF[msg_clean]
+            return SUBMENU_CAF_LAZO, "CAF_LAZO", None, False
+        elif msg_clean in MAPA_TITULOS_CAF:
+            desc, archivo = obtener_item_caf_por_titulo_o_indice(msg_clean)
             USER_STATES[user_id] = "INICIO"
-            return text, "INICIO", None
-        elif msg_clean in MAPA_IMAGENES_CAF:
-            titulo = MAPA_IMAGENES_CAF[msg_clean]
-            desc, archivo = obtener_imagen_caf_por_titulo(titulo)
-            USER_STATES[user_id] = "INICIO"
-            return desc, "INICIO", archivo
+            return desc, "INICIO", archivo, True  # Respuesta final -> Genera Audio
         else:
-            return f"Opción no válida.\n\n{MENU_CAF6000}", "MENU_CAF", None
+            return f"Opción no válida.\n\n{MENU_CAF6000}", "MENU_CAF", None, False
 
-    # --- SUBMENÚ CAF 6000: INTERRUPCIÓN DEL HILO DE LAZO ---
+    # --- RESPUESTA FINAL: SUBMENÚ CAF LAZO ---
     if estado_actual == "CAF_LAZO":
         if msg_clean in TEXTOS_CAF_LAZO:
             res = TEXTOS_CAF_LAZO[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return res, "INICIO", None
+            return res, "INICIO", None, True  # Respuesta final -> Genera Audio
         else:
-            return f"Opción no válida.\n\n{SUBMENU_CAF_LAZO}", "CAF_LAZO", None
+            return f"Opción no válida.\n\n{SUBMENU_CAF_LAZO}", "CAF_LAZO", None, False
 
     USER_STATES[user_id] = "MENU_PRINCIPAL"
-    return MENU_INICIAL, "MENU_PRINCIPAL", None
+    return MENU_INICIAL, "MENU_PRINCIPAL", None, False
 
 # --- GENERACIÓN DE AUDIO ---
 
@@ -349,7 +355,7 @@ def api_preguntar():
         pregunta = data.get('pregunta') or data.get('message') or data.get('text') or ''
         user_id = data.get('user_id') or data.get('sender') or 'usuario_unico'
 
-        respuesta_texto, nuevo_estado, archivo_imagen = procesar_flujo_menu(pregunta, user_id=user_id)
+        respuesta_texto, nuevo_estado, archivo_imagen, es_respuesta_final = procesar_flujo_menu(pregunta, user_id=user_id)
 
         if respuesta_texto is None:
             return jsonify({
@@ -364,10 +370,14 @@ def api_preguntar():
 
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
-        filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
-        filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
-        audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
-        audio_url = f"{host_url}/audio/{filename_audio}" if audio_ok else None
+        # Solo generar e incluir audio si se llegó a una respuesta técnica final
+        audio_url = None
+        if es_respuesta_final and respuesta_texto:
+            filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
+            filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
+            audio_ok = generate_voice_file(respuesta_texto, filepath_audio)
+            if audio_ok:
+                audio_url = f"{host_url}/audio/{filename_audio}"
 
         return jsonify({
             'respuesta_texto': respuesta_texto,
@@ -395,5 +405,5 @@ def get_image(filename):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    print(f"🤖 Bot Paco listo en el puerto {port}...")
+    print(f"🤖 Bot Paco activo en el puerto {port}...")
     app.run(host="0.0.0.0", port=port)
