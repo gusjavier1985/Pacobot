@@ -129,25 +129,85 @@ Descender los pasajeros en el primer anden.
 Con menos de 6,5 kg/cm² identificar la pérdida y seccionar neumáticamente."""
 }
 
-# TEXTOS DIRECTOS ESPECÍFICOS CAF 6000 (Opciones 1, 3 y 4)
+# TEXTOS DIRECTOS LITERALES Y EXACTOS PARA CAF 6000 (Opciones 1, 3 y 4)
 TEXTOS_DIRECTOS_CAF = {
-    "1": """1- PROCEDIMIENTO ANTE UNA AVERÍA:
+    "1": """1-PROCEDIMIENTO ANTE UNA AVERÍA
+Este procedimiento es para evitar una
+evacuación dentro del túnel.
+Debe ser realizado siempre que se presente una
+avería en la formación y que la misma se
+encuentre dentro del túnel. Realizando estos
+pasos se logrará llegar en primera instancia a la
+próxima estación o a las estaciones de cabecera
+Alem / Rosas.
 
-- Identificar el fallo en la pantalla/panel de cabina.
-- Verificar el estado de térmicos y lazos de seguridad.
-- Aplicar el procedimiento específico según el código o síntoma del equipo.""",
+LEER LAS INDICACIONES DEL MAC
+REALIZAR LAS 3 ACCIONES BASICAS
 
-    "3": """3- PUERTAS NO ABREN:
+Desconectar y conectar llave de toma de
+mando (A.T.P)
+Conectar disyuntores
+Anular freno de retención
 
-- Verificar habilitación de lado de plataforma.
-- Revisar presión de aire en circuito auxiliar.
-- Verificar estado de térmicos de mando de puertas.""",
+APAGAR Y ENCENDER LA FORMACIÓN EN
+CASO DE SER PROCEDENTE
+"Si no se normaliza el desperfecto proceder de
+acuerdo a instrucción recibida por manual para
+la resolución de la avería""",
 
-    "4": """4- PUERTAS NO CIERRAN:
+    "3": """3_PUERTAS NO ABREN
 
-- Verificar si hay obstrucción física en el bucle de puertas.
-- Comprobar que ninguna seta de emergencia esté accionada.
-- Verificar indicador de lazo de puertas en pupitre de conducción."""
+•Toda la formación :
+Verificar la posición habilitada de la llave de
+pulsadores de puertas.
+Reponer la térmica "Mando puertas" 55-F1
+en la cabina del guarda.
+Si no repone solicitar la apertura de puertas
+al conductor.
+
+•Un coche :
+Desbloqueo de puertas accionado: dirigirse
+al coche afectado y normalizar la llave de
+desbloqueo correspondiente.
+Térmico en el coche afectado: dirigirse al
+coche afectado y reponer la térmica
+"Alimentación puertas" 55-F2.
+Si no repone descender a los pasajeros de la
+formación.
+
+•Una puerta :
+Dirigirse a la puerta trabada y tratar de
+normalizarla, de no ser posible o si figura
+desbloqueada, condenarla y continuar
+marcha normal.""",
+
+    "4": """4_PUERTAS NO CIERRAN
+
+•Toda la formación :
+Verificar la posición habilitada de la llave de
+pulsadores de puertas.
+Reponer la térmica "Mando puertas" 55-F1
+en la cabina del guarda.
+Si no repone solicitar el cierre de puertas al
+conductor.
+
+•Un coche :
+Desbloqueo de puertas accionado: dirigirse
+al coche afectado y normalizar la llave de
+desbloqueo correspondiente.
+Térmico en el coche afectado: dirigirse al
+coche afectado y reponer la térmica
+"Alimentación puertas" 55-F2.
+Si no repone descender a los pasajeros de la
+formación.
+
+•Una puerta :
+Dirigirse a la puerta trabada y tratar de
+normalizarla, de no ser posible o si figura
+desbloqueada, condenarla y continuar
+marcha normal.
+Si no puede cerrarse descender a los
+pasajeros de la formación."""
 }
 
 MAPA_TITULOS_CAF = {
@@ -223,7 +283,7 @@ def obtener_item_caf_por_titulo_o_indice(num_opcion):
             desc = img.get("descripcion") or img.get("titulo") or titulo_buscado
             return desc, img.get("archivo")
 
-    # 2. Coincidencia por índice de la lista en JSON si no es exacta
+    # 2. Coincidencia por índice de la lista en JSON
     try:
         idx = int(num_opcion) - 1
         if 0 <= idx < len(caf_items):
@@ -392,7 +452,7 @@ def api_preguntar():
 
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
-        # Genera e incluye audio únicamente si se llegó a la respuesta final
+        # Audio únicamente para la respuesta final
         audio_url = None
         if es_respuesta_final and respuesta_texto:
             filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
