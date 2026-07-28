@@ -38,34 +38,19 @@ def get_image(filename):
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
-# Configuración y Credenciales
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8979818632:AAGxBHt2hCgXlIpAneCz1_qEiHTpFYb3BwU")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 def normalize_text(text):
-    """Remueve tildes, acentos y convierte a minúsculas."""
     if not text:
         return ""
     text = unicodedata.normalize('NFD', text)
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
     return text.lower().strip()
 
-def is_fault_query(query):
-    """Detecta si la consulta refiere a una falla, avería técnica o punto de manual."""
-    q_norm = normalize_text(query)
-    fault_keywords = [
-        "no abre", "no abren", "no cierra", "no cierran", "falla", "averia", "averias",
-        "no arranca", "no carga", "trabada", "trabado", "frenado", "seccionar",
-        "no anda", "no funciona", "problema", "desperfecto", "no para", "no tracciona",
-        "luz de bo", "bo y olr", "luz bo", "olr", "bo", "bp no carga", "ausencia de velocidad",
-        "temporizador", "alarma sonora", "compresor"
-    ]
-    return any(kw in q_norm for kw in fault_keywords)
-
 def check_direct_intents(query):
-    """Detecta únicamente saludos puros y preguntas sobre el origen del nombre PACO."""
     q_norm = normalize_text(query)
     
     paco_patterns = [
@@ -80,7 +65,6 @@ def check_direct_intents(query):
     words = q_norm.split()
     
     es_saludo_puro = q_norm in saludos or (len(words) <= 2 and any(w in saludos for w in words))
-    
     if es_saludo_puro:
         return "¡Hola! Buen día. ¿En qué te puedo ayudar hoy?"
 
@@ -142,17 +126,43 @@ SYNONYMS = {
     "escalera": ["escalera", "evacuacion", "emergencia"]
 }
 
-def search_relevant_chunks(query, top_k=8):
+def analyze_models_in_chunks(query):
+    """Verifica si la consulta existe en el manual de Mitsubishi, CAF 6000 o en ambos."""
     stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
     query_norm = normalize_text(query)
     words = re.findall(r'\b\w+\b', query_norm)
     keywords = [w for w in words if w not in stopwords and len(w) > 1]
 
-    target_model = None
-    if any(m in query_norm for m in ["caf", "6000", "sicas", "microcef"]):
-        target_model = "CAF 6000"
-    elif any(m in query_norm for m in ["mitsubishi", "mitsu", "nfb", "atp"]):
-        target_model = "Mitsubishi"
+    expanded_keywords = set(keywords)
+    for kw in keywords:
+        if kw in SYNONYMS:
+            expanded_keywords.update(SYNONYMS[kw])
+
+    mitsu_found = False
+    caf_found = False
+
+    for chunk in chunks:
+        chunk_norm = normalize_text(chunk)
+        score = sum(1 for kw in expanded_keywords if kw in chunk_norm)
+        if score >= 1:
+            if "[modelo: mitsubishi]" in chunk_norm:
+                mitsu_found = True
+            elif "[modelo: caf 6000]" in chunk_norm:
+                caf_found = True
+
+    return mitsu_found, caf_found
+
+def search_relevant_chunks(query, target_model=None, top_k=8):
+    stopwords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "de", "del", "a", "ante", "en", "que", "por", "para", "con", "se", "es", "su", "lo", "como"}
+    query_norm = normalize_text(query)
+    words = re.findall(r'\b\w+\b', query_norm)
+    keywords = [w for w in words if w not in stopwords and len(w) > 1]
+
+    if not target_model:
+        if any(m in query_norm for m in ["caf", "6000", "sicas", "microcef"]):
+            target_model = "CAF 6000"
+        elif any(m in query_norm for m in ["mitsubishi", "mitsu", "nfb", "atp"]):
+            target_model = "Mitsubishi"
 
     expanded_keywords = set(keywords)
     for kw in keywords:
@@ -168,7 +178,7 @@ def search_relevant_chunks(query, top_k=8):
             if f"[modelo: {target_model.lower()}]" in chunk_norm:
                 score += 5
             elif "[modelo: general]" not in chunk_norm:
-                score -= 3
+                score -= 5
 
         if score > 0:
             scored_chunks.append((score, chunk))
@@ -193,10 +203,6 @@ def load_imagenes_json():
     return None
 
 def search_relevant_image(query, history=None):
-    # Si la consulta es sobre averías/puntos de manual, forzamos omitir búsqueda de imágenes ambiguas
-    if is_fault_query(query):
-        return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
-
     images_db = load_imagenes_json()
     if not images_db:
         return {"type": "NONE", "image": None, "images": [], "options": [], "all_titles": []}
@@ -229,8 +235,6 @@ def search_relevant_image(query, history=None):
         titulo_norm = normalize_text(item.get("titulo", ""))
         
         score = 0
-
-        # Coincidencia exacta de título
         if titulo_norm and titulo_norm == query_norm:
             score += 50
         else:
@@ -292,6 +296,9 @@ def generate_voice_file(text, output_file):
 
 def query_groq_llm(user_prompt, search_result=None, history=None):
     clean_user_input = user_prompt.strip()
+    target_model = None
+
+    # Manejar selección previa 1 o 2
     if clean_user_input in ["1", "2"] and history and len(history) >= 2:
         last_assistant_msg = ""
         last_user_msg = ""
@@ -305,8 +312,8 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
                 break
         
         if "Para el Mitsubishi enviar 1" in last_assistant_msg or "enviar 1" in last_assistant_msg:
-            model_choice = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
-            user_prompt = f"Procedimiento paso a paso para {last_user_msg} en la formación {model_choice}"
+            target_model = "Mitsubishi" if clean_user_input == "1" else "CAF 6000"
+            user_prompt = last_user_msg
 
     direct_response = check_direct_intents(user_prompt)
     if direct_response:
@@ -332,46 +339,35 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
         else:
             return "Actualmente no hay imágenes cargadas en la base de datos `imagenes.json`.", None
 
-    relevant_context = search_relevant_chunks(user_prompt, top_k=8)
+    # Verificación de presencia en manuales para evitar preguntas innecesarias
+    if not target_model and clean_user_input not in ["1", "2"]:
+        q_norm = normalize_text(user_prompt)
+        has_mitsu_explicit = any(m in q_norm for m in ["mitsubishi", "mitsu"])
+        has_caf_explicit = any(m in q_norm for m in ["caf", "6000"])
+
+        if not has_mitsu_explicit and not has_caf_explicit:
+            in_mitsu, in_caf = analyze_models_in_chunks(user_prompt)
+            if in_mitsu and in_caf:
+                return f"Si te referís a la consulta:\n\n• Para el Mitsubishi enviar 1\n• Para el CAF 6000 enviar 2", None
+            elif in_mitsu:
+                target_model = "Mitsubishi"
+            elif in_caf:
+                target_model = "CAF 6000"
+
+    relevant_context = search_relevant_chunks(user_prompt, target_model=target_model, top_k=8)
 
     system_instruction = f"""
     Eres Paco, un asistente técnico experimentado para el personal de tráfico del Subte (Línea B).
 
-    REGLAS DE ORO OBLIGATORIAS:
+    REGLAS ESTRICTAS DE FIDELIDAD TÉCNICA:
+    1. TRANSCRIBE ÚNICAMENTE LO QUE FIGURA EN LOS MANUALES PROVISTOS.
+    2. ESTÁ STRICTAMENTE PROHIBIDO INVENTAR PASOS, DIAGNÓSTICOS, SISTEMAS DE COMUNICACIÓN, SEGURIDAD O NOTAS QUE NO ESTÉN EN EL TEXTO DEL MANUAL.
+    3. Copia fielmente la estructura del manual (puntos, viñetas, guiones y numeraciones originales).
+    4. NO uses intros, saludos, ni frases como "Según el manual" o "Para solucionar...".
+    5. Si la información exacta no está escrita en los fragmentos del contexto, responde únicamente:
+       "- No dispongo de la información exacta para esa consulta en los manuales cargados."
 
-    1. RESPUESTAS COMPLETAS Y FIELES AL MANUAL (SIN OMITIR DETALLES):
-       - DEBES proporcionar la respuesta COMPLETA Y DETALLADA tal como figura en los manuales.
-       - PROHIBIDO resumir, sintetizar, recortar o omitir pasos, observaciones, notas o precauciones.
-       - Transcribe el procedimiento ÍNTEGRO de principio a fin, manteniendo la fidelidad absoluta al texto original.
-
-    2. CERO SALUDOS EN RESPUESTAS TÉCNICAS:
-       - PROHIBIDO comenzar respuestas con "¡Hola!", "Buen día", "Buenas tardes" ni "¿En qué te puedo ayudar hoy?".
-       - NO agregues cortesías iniciales ni finales. Ve DIRECTO al contenido técnico.
-
-    3. REGULARIZACIÓN DE OPCIONES DE FORMACIÓN:
-       - Si la consulta (ejemplo: "puertas no abren", "tren no arranca", "freno", "batería", "bp no carga", etc.) aplica a AMBAS formaciones (Mitsubishi y CAF 6000) Y EL USUARIO NO ESPECIFICÓ EL MODELO NI RESPONDIÓ CON 1 O 2:
-         Debes responder EXCLUSIVAMENTE con el siguiente texto y NADA MÁS:
-
-         Si te referís a la consulta:
-         • Para el Mitsubishi enviar 1
-         • Para el CAF 6000 enviar 2
-
-       - QUEDA ESTRICTAMENTE PROHIBIDO DAR EXPLICACIONES, PASOS O PROCEDIMIENTOS EN ESTE MENSAJE. Solo debes enviar las opciones 1 y 2.
-
-    4. CERO MULETILLAS, CITAS O INTRODUCCIONES:
-       - NUNCA uses frases como "Según el manual...", "De acuerdo a...", "Para solucionar el problema de...", "Recuerde verificar...", "Si te refieres a...".
-       - Ve DIRECTO al procedimiento.
-
-    5. RESPETO ABSOLUTO DEL FORMATO Y SIMBOLOGÍA ORIGINAL DEL MANUAL:
-       - MANTÉN EXACTAMENTE la viñeta o conector original del manual: si el texto tiene guiones (-), puntos de viñeta (•) o tildes (✓), DEBES USAR ESOS MISMOS SÍMBOLOS.
-       - NO conviertas automáticamente las viñetas en listas numeradas (1, 2, 3...).
-       - UTILIZA números ÚNICAMENTE si el manual original tiene los pasos explícitamente numerados.
-
-    6. SI LA INFORMACIÓN NO EXISTE:
-       - Si la consulta NO figura en los manuales ni en las imágenes, responde únicamente:
-         "- No dispongo de la información exacta para esa consulta en los manuales ni en las imágenes cargadas."
-
-    INFORMACIÓN TÉCNICA Y CONTEXTO DISPONIBLE DE LOS MANUALES:
+    TEXTO TÉCNICO RECUPERADO DEL MANUAL:
     {relevant_context}
     """
 
@@ -408,7 +404,6 @@ def query_groq_llm(user_prompt, search_result=None, history=None):
     except Exception as e:
         return f"- Error de conexión con el servicio de IA: {str(e)}", None
 
-# --- ENDPOINT PARA BASE44 (CHAT) ---
 @app.route('/preguntar', methods=['POST', 'OPTIONS'])
 def api_preguntar():
     if request.method == 'OPTIONS':
@@ -474,7 +469,6 @@ def api_preguntar():
             'imagen_url': None
         }), 200
 
-# --- ENDPOINT PARA GENERAR AUDIO DE NOVEDADES ---
 @app.route('/generar-audio', methods=['POST'])
 def api_generar_audio():
     data = request.get_json(silent=True) or {}
@@ -496,7 +490,6 @@ def api_generar_audio():
 
     return jsonify({'audio_url': f"{host_url}/audio/{filename_audio}"})
 
-# --- MANEJADORES TELEGRAM ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(message, "👋 **¡Hola, compañero!** Soy Paco, tu Asistente Técnico. ¿En qué te puedo ayudar hoy?", parse_mode="Markdown")
@@ -578,7 +571,6 @@ def handle_text_message(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-# Inicio del Bot de Telegram en hilo secundario
 def run_telegram_bot():
     try:
         print("Iniciando Bot de Telegram...")
