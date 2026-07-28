@@ -43,7 +43,7 @@ resultados con imágenes:
 6_PUERTAS
 7_EXTERIOR Y RELAY"""
 
-TEXTO_MITSUBISHI_ENCENDIDO = """1_ENCENDIDO
+TEXTO_MITSUBISHI_ENCENDIDO = """ENCENDIDO
 
 1-En la cabina del coche n°1 (Punta Rosas),Encender el coche conectando los NFB que se encuentran pintados de blanco a saber:
 
@@ -67,7 +67,7 @@ TEXTO_MITSUBISHI_ENCENDIDO = """1_ENCENDIDO
 
 4- Comprobar el encendido de las luces de cola, cabecera y cabina"""
 
-TEXTO_MITSUBISHI_ESTACIONAMIENTO = """2_ESTACIONAMIENTO:
+TEXTO_MITSUBISHI_ESTACIONAMIENTO = """ESTACIONAMIENTO
 
 1-En la cabina del coche n°1 (Punta Rosas),Apagar el coche desconectando los NFB que se encuentran pintados de blanco a saber:
 • Auxiliar de alta
@@ -102,7 +102,7 @@ SUBMENU_MITSUBISHI_AVERIAS = """Seleccioná el número de la avería de Mitsubis
 14 - Compresor no para"""
 
 TEXTOS_MITSUBISHI_AVERIAS = {
-    "1": """1-Falla fatal ATP
+    "1": """Falla fatal ATP
 
 •Verificar código de falla.
 •Resetear y verificar
@@ -113,12 +113,12 @@ TEXTOS_MITSUBISHI_AVERIAS = {
 
 Toda vez que se efectúe una verificación, de ser el resultado positivo, continuar la marcha poniendo en conocimiento al PCO""",
 
-    "2": """2_Ausencia de velocidad objetivo o velocidad objetivo Cero
+    "2": """Ausencia de velocidad objetivo o velocidad objetivo Cero
 
 -Confirmar con el PCO
 -Solicitar autorización al PCO y pasar a CL""",
 
-    "3": """3_BP no Carga
+    "3": """BP no Carga
 
 MPI Apagado:
 Verificar:
@@ -134,7 +134,7 @@ MPI Encendido:
 -Electrovávulas EMV1 o EMV2
 -Pérdidas a localizar""",
 
-    "4": """4_No se puede conducir de cabina delantera
+    "4": """No se puede conducir de cabina delantera
 
 Previo aviso al PCO:
 -Ir a la cabina trasera
@@ -144,7 +144,7 @@ Previo aviso al PCO:
 -Verificar sistemas de comunicación
 -Viaje directo sin Pasajeros.""",
 
-    "5": """5_Seccionar en Plataforma
+    "5": """Seccionar en Plataforma
 
 -Solicitar corte de corriente en plataforma
 -Accionar grifos interruptores
@@ -153,7 +153,7 @@ Previo aviso al PCO:
 -Anular enclavamiento
 -Colocar en AL""",
 
-    "6": """6_Tren no arranca con luz de aviso apagada
+    "6": """Tren no arranca con luz de aviso apagada
 
 -Verificar aire en el BP
 -Verificar conmutadores
@@ -162,7 +162,7 @@ Previo aviso al PCO:
 -Si el tren no arranca, sacar el enclavamiento de puertas y probar
 -Dar aviso al PCO y realizar viaje normal a cabecera con las precauciones de circular sin enclavamiento de puertas""",
 
-    "7": """7_Tren no arranca con luz de aviso encendida
+    "7": """Tren no arranca con luz de aviso encendida
 
 -Verificar aire en el BP
 -Verificar tensión (650 Vcc)
@@ -171,19 +171,19 @@ Previo aviso al PCO:
 -Sacar enclavamiento de puertas y probar
 -De no arrancar manejar de la cabina de cola según procedimiento""",
 
-    "8": """8_Luz de BO
+    "8": """Luz de BO
 
 -Indica que en un coche de la formación no circula corriente por los motores de tracción (a remolque sin freno dinámico)
 -Colocar la inversión en posición NEUTRO, volver a la posición ADELANTE y verificar si la falla desaparece
 -Determinar con el Guarda si es un coche de punta o intermedio mediante los amperímetros de cabina
 -Continuar viaje dando aviso al PCO y tomando las precauciones del caso""",
 
-    "9": """9_Luces de BO y OLR encendidas
+    "9": """Luces de BO y OLR encendidas
 
 -Identificar el coche en el que actuó la protección del circuito de tracción
 -Reponer""",
 
-    "10": """10_Puertas no Abren
+    "10": """Puertas no Abren
 
 De toda la formación:
 -Verificar falso contacto en control de puertas
@@ -200,7 +200,7 @@ Una puerta:
 -Neumático: Grifo individual
 -Mecánico: puerta trabada o descarrilada""",
 
-    "11": """11_Puertas no Cierran
+    "11": """Puertas no Cierran
 
 De toda la formación:
 -Verificar conmutadores
@@ -215,12 +215,12 @@ Una puerta:
 -Puerta trabada o descarrilada
 -Si no se puede solucionar desairar y encerrojar""",
 
-    "12": """12_Alarma sonora no funciona
+    "12": """Alarma sonora no funciona
 
 -Verificar llave metálica tipo perilla en posición IZQUIERDA
 -Si no normaliza finalizar el viaje dando aviso de cierre de puertas con el silbato""",
 
-    "13": """13_Falla de Temporizador
+    "13": """Falla de Temporizador
 
 -Verificar cuchilla del SPD
 -Verificar Conmutadores de Dirección
@@ -230,7 +230,7 @@ Una puerta:
 -Romper precinto de temporizado de puertas
 -Continuar viaje de acuerdo a procedimiento de falta de alarma sonora""",
 
-    "14": """14_Compresor no para
+    "14": """Compresor no para
 
 -Verificar el accionamiento de la válvula de seguridad y de drenaje mediante el manómetro de compresor (lectura normal entre 7 y 9 Kg)
 -De no parar desconectar NFB de compresor del coche afectado
@@ -261,7 +261,7 @@ MAPA_CAT4 = {
     "5": "Probador de tensión",
     "6": "Esquema de distribución de los elementos de seguridad",
     "7": "Luz indicadora de alarma",
-    "8": "NFB de Cabina",
+    "8": "NFB de Cabina (ubicación)",
     "9": "Armario lateral",
     "10": "Conmutador de dirección",
     "11": "Distribucion de puertas y lados"
@@ -302,16 +302,16 @@ MAPA_CAT5 = {
     "7": "Voltímetro de alta tensión",
     "8": "Voltímetro de baja tensión",
     "9": "Luces indicadoras",
-    "10": "Dispositivo de paratren",
-    "11": "Interruptor de control CT",
+    "10": "Dispositivo de paratren ( caja de control )",
+    "11": "Interruptor de control CT (Anulado)",
     "12": "Botón de reset del OLR",
     "13": "Llave de modalidad CMC - CL",
     "14": "Botón de arranque",
     "15": "Llave de A.L y Llave de reset",
     "16": "Caja controladora del MG",
-    "17": "Modo de operación CMC",
-    "18": "Modo de operación CL",
-    "19": "Modo de operación AL",
+    "17": "Modo de operación CMC (Conducción Manual Controlada)",
+    "18": "Modo de operación CL (Conducción Limitada)",
+    "19": "Modo de operación AL (Aislado Limitado)",
     "20": "Detección y gestión de falla del ATP de Abordo",
     "21": "MPI (Modulo Principal de Informaciones)",
     "22": "MPI (Modulo Principal de Informaciones) sus funciones"
@@ -335,7 +335,7 @@ MAPA_CAT6 = {
     "3": "Control de puertas",
     "4": "Temporizado de puertas",
     "5": "Llave de conmutación de cierre de puertas",
-    "6": "Control de puertas para el conductor",
+    "6": "Control de puertas para el conductor (sin habilitar)",
     "7": "Interruptor de cortocircuito de cierre de puertas",
     "8": "Grifos de puertas",
     "9": "Motor de puertas"
@@ -350,7 +350,7 @@ SUBMENU_MITSU_CAT7 = """7_EXTERIOR, GRIFOS Y RELAY:
 
 MAPA_CAT7 = {
     "1": "Grifo interruptor",
-    "2": "Electroválvulas de emergencia",
+    "2": "Electroválvulas de emergencia (EMV1 y EMV2)",
     "3": "Dispositivo de accionamiento A1",
     "4": "Caja controladora del MG"
 }
@@ -387,27 +387,32 @@ SUBMENU_CAF_LAZO = """Opciones para 2 - INTERRUPCION DEL HILO DE LAZO:
 5 - TERMICO EN COCHE 6"""
 
 TEXTOS_CAF_LAZO = {
-    "1": """1_SETA APLICADA :
+    "1": """SETA APLICADA
+
 Normalizar la seta aplicada.
 Si no se puede normalizar desconectar en todos los coches térmica "Tiradores de alarma" 53-F1.
 Pulsar Bypass de freno para conducir.
 Descender los pasajeros en el primer anden.""",
 
-    "2": """2_VARIOS INVERSORES:
+    "2": """VARIOS INVERSORES
+
 Normalizar la inversora en la cabina correspondiente.
 Si no se puede normalizar continuar marcha normal pulsando Bypass de freno y Bypass de tracción""",
 
-    "3": """3_TERMICO EN CUALQUIER COCHE:
+    "3": """TERMICO EN CUALQUIER COCHE
+
 Reponer en el coche afectado térmica "Equipo antibloqueo" (33F1).
 Si no repone proceder ídem. Coche frenado por Micromicef.""",
 
-    "4": """4_TERMICO EN COCHE 1 :
+    "4": """TERMICO EN COCHE 1
+
 Reponer térmica "Lazo de emergencia" 52-F1.
 Si no repone pulsar setas de pupitre en cabinas 1 y 6 y desconectar en todos los coches térmica "Tiradores de alarma" 53-F1.
 Pulsar Bypass de freno para conducir.
 Descender los pasajeros en el primer anden.""",
 
-    "5": """5_TERMICO EN COCHE 6 : 
+    "5": """TERMICO EN COCHE 6
+
 Reponer térmica "Relé de cola" 57-F1.
 Si no repone continuar marcha normal pulsando Bypass de freno y Bypass de tracción.
 Presión en la cañería principal inferior a 8 kg/cm² :
@@ -417,83 +422,51 @@ Con menos de 6,5 kg/cm² identificar la pérdida y seccionar neumáticamente."""
 }
 
 TEXTOS_DIRECTOS_CAF = {
-    "1": """1-PROCEDIMIENTO ANTE UNA AVERÍA
-Este procedimiento es para evitar una
-evacuación dentro del túnel.
-Debe ser realizado siempre que se presente una
-avería en la formación y que la misma se
-encuentre dentro del túnel. Realizando estos
-pasos se logrará llegar en primera instancia a la
-próxima estación o a las estaciones de cabecera
-Alem / Rosas.
+    "1": """PROCEDIMIENTO ANTE UNA AVERÍA
+
+Este procedimiento es para evitar una evacuación dentro del túnel.
+Debe ser realizado siempre que se presente una avería en la formación y que la misma se encuentre dentro del túnel. Realizando estos pasos se logrará llegar en primera instancia a la próxima estación o a las estaciones de cabecera Alem / Rosas.
 
 LEER LAS INDICACIONES DEL MAC
 REALIZAR LAS 3 ACCIONES BASICAS
 
-Desconectar y conectar llave de toma de
-mando (A.T.P)
+Desconectar y conectar llave de toma de mando (A.T.P)
 Conectar disyuntores
 Anular freno de retención
 
-APAGAR Y ENCENDER LA FORMACIÓN EN
-CASO DE SER PROCEDENTE
-"Si no se normaliza el desperfecto proceder de
-acuerdo a instrucción recibida por manual para
-la resolución de la avería""",
+APAGAR Y ENCENDER LA FORMACIÓN EN CASO DE SER PROCEDENTE
+"Si no se normaliza el desperfecto proceder de acuerdo a instrucción recibida por manual para la resolución de la avería""",
 
-    "3": """3_PUERTAS NO ABREN
+    "3": """PUERTAS NO ABREN
 
 •Toda la formación :
-Verificar la posición habilitada de la llave de
-pulsadores de puertas.
-Reponer la térmica "Mando puertas" 55-F1
-en la cabina del guarda.
-Si no repone solicitar la apertura de puertas
-al conductor.
+Verificar la posición habilitada de la llave de pulsadores de puertas.
+Reponer la térmica "Mando puertas" 55-F1 en la cabina del guarda.
+Si no repone solicitar la apertura de puertas al conductor.
 
 •Un coche :
-Desbloqueo de puertas accionado: dirigirse
-al coche afectado y normalizar la llave de
-desbloqueo correspondiente.
-Térmico en el coche afectado: dirigirse al
-coche afectado y reponer la térmica
-"Alimentación puertas" 55-F2.
-Si no repone descender a los pasajeros de la
-formación.
+Desbloqueo de puertas accionado: dirigirse al coche afectado y normalizar la llave de desbloqueo correspondiente.
+Térmico en el coche afectado: dirigirse al coche afectado y reponer la térmica "Alimentación puertas" 55-F2.
+Si no repone descender a los pasajeros de la formación.
 
 •Una puerta :
-Dirigirse a la puerta trabada y tratar de
-normalizarla, de no ser posible o si figura
-desbloqueada, condenarla y continuar
-marcha normal.""",
+Dirigirse a la puerta trabada y tratar de normalizarla, de no ser posible o si figura desbloqueada, condenarla y continuar marcha normal.""",
 
-    "4": """4_PUERTAS NO CIERRAN
+    "4": """PUERTAS NO CIERRAN
 
 •Toda la formación :
-Verificar la posición habilitada de la llave de
-pulsadores de puertas.
-Reponer la térmica "Mando puertas" 55-F1
-en la cabina del guarda.
-Si no repone solicitar el cierre de puertas al
-conductor.
+Verificar la posición habilitada de la llave de pulsadores de puertas.
+Reponer la térmica "Mando puertas" 55-F1 en la cabina del guarda.
+Si no repone solicitar el cierre de puertas al conductor.
 
 •Un coche :
-Desbloqueo de puertas accionado: dirigirse
-al coche afectado y normalizar la llave de
-desbloqueo correspondiente.
-Térmico en el coche afectado: dirigirse al
-coche afectado y reponer la térmica
-"Alimentación puertas" 55-F2.
-Si no repone descender a los pasajeros de la
-formación.
+Desbloqueo de puertas accionado: dirigirse al coche afectado y normalizar la llave de desbloqueo correspondiente.
+Térmico en el coche afectado: dirigirse al coche afectado y reponer la térmica "Alimentación puertas" 55-F2.
+Si no repone descender a los pasajeros de la formación.
 
 •Una puerta :
-Dirigirse a la puerta trabada y tratar de
-normalizarla, de no ser posible o si figura
-desbloqueada, condenarla y continuar
-marcha normal.
-Si no puede cerrarse descender a los
-pasajeros de la formación."""
+Dirigirse a la puerta trabada y tratar de normalizarla, de no ser posible o si figura desbloqueada, condenarla y continuar marcha normal.
+Si no puede cerrarse descender a los pasajeros de la formación."""
 }
 
 MAPA_TITULOS_CAF = {
@@ -533,10 +506,15 @@ def load_imagenes_json():
                 print(f"Error leyendo {json_path}: {e}")
     return []
 
-def buscar_imagen_por_titulo(modelo, titulo_buscado):
-    # Caso especial reutilización de foto CAF 6000 para opción 11 de Ubicación y Esquemas
+def obtener_detalles_imagen(modelo, titulo_buscado):
+    # Caso especial reutilización de foto CAF 6000 para opción 11 de Mitsubishi
     if modelo == "Mitsubishi" and "distribucion de puertas y lados" in normalize_text(titulo_buscado):
-        return "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg"
+        images = load_imagenes_json()
+        for img in images:
+            if img.get("modelo") == "CAF 6000" and "distribucion de puertas y lados" in normalize_text(img.get("titulo", "")):
+                desc = img.get("descripcion", "")
+                text_out = f"DISTRIBUCIÓN DE PUERTAS Y LADOS\n\n{desc}".strip() if desc else "DISTRIBUCIÓN DE PUERTAS Y LADOS"
+                return text_out, img.get("archivo")
 
     images = load_imagenes_json()
     t_norm = normalize_text(titulo_buscado)
@@ -545,8 +523,12 @@ def buscar_imagen_por_titulo(modelo, titulo_buscado):
         if img.get("modelo") == modelo:
             t_json = normalize_text(img.get("titulo", ""))
             if t_norm and (t_norm in t_json or t_json in t_norm):
-                return img.get("archivo")
-    return None
+                titulo_limpio = img.get("titulo", titulo_buscado)
+                desc = img.get("descripcion", "")
+                text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+                return text_out, img.get("archivo")
+                
+    return titulo_buscado, None
 
 def obtener_item_caf_por_titulo_o_indice(num_opcion):
     images = load_imagenes_json()
@@ -557,19 +539,23 @@ def obtener_item_caf_por_titulo_o_indice(num_opcion):
     for img in caf_items:
         t_json = normalize_text(img.get("titulo", ""))
         if titulo_norm and t_json == titulo_norm:
-            desc = img.get("descripcion") or img.get("titulo") or titulo_buscado
-            return desc, img.get("archivo")
+            titulo_limpio = img.get("titulo", titulo_buscado)
+            desc = img.get("descripcion", "")
+            text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+            return text_out, img.get("archivo")
 
     try:
         idx = int(num_opcion) - 1
         if 0 <= idx < len(caf_items):
             item = caf_items[idx]
-            desc = item.get("descripcion") or item.get("titulo") or titulo_buscado
-            return desc, item.get("archivo")
+            titulo_limpio = item.get("titulo", titulo_buscado)
+            desc = item.get("descripcion", "")
+            text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+            return text_out, item.get("archivo")
     except ValueError:
         pass
 
-    return f"Información sobre: {titulo_buscado}", None
+    return titulo_buscado, None
 
 # --- LÓGICA DE NAVEGACIÓN COMPLETA ---
 
@@ -641,9 +627,9 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
     if estado_actual == "MITSU_CAT4":
         if msg_clean in MAPA_CAT4:
             titulo = MAPA_CAT4[msg_clean]
-            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
             USER_STATES[user_id] = "INICIO"
-            return f"4_UBICACION Y ESQUEMAS: {titulo}", "INICIO", archivo, True
+            return texto_final, "INICIO", archivo, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT4}", "MITSU_CAT4", None, False
 
@@ -651,9 +637,9 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
     if estado_actual == "MITSU_CAT5":
         if msg_clean in MAPA_CAT5:
             titulo = MAPA_CAT5[msg_clean]
-            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
             USER_STATES[user_id] = "INICIO"
-            return f"5_CONDUCCIÓN: {titulo}", "INICIO", archivo, True
+            return texto_final, "INICIO", archivo, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT5}", "MITSU_CAT5", None, False
 
@@ -661,9 +647,9 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
     if estado_actual == "MITSU_CAT6":
         if msg_clean in MAPA_CAT6:
             titulo = MAPA_CAT6[msg_clean]
-            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
             USER_STATES[user_id] = "INICIO"
-            return f"6_PUERTAS: {titulo}", "INICIO", archivo, True
+            return texto_final, "INICIO", archivo, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT6}", "MITSU_CAT6", None, False
 
@@ -671,9 +657,9 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
     if estado_actual == "MITSU_CAT7":
         if msg_clean in MAPA_CAT7:
             titulo = MAPA_CAT7[msg_clean]
-            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
             USER_STATES[user_id] = "INICIO"
-            return f"7_EXTERIOR, GRIFOS Y RELAY: {titulo}", "INICIO", archivo, True
+            return texto_final, "INICIO", archivo, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT7}", "MITSU_CAT7", None, False
 
