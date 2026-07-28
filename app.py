@@ -202,7 +202,6 @@ def load_imagenes_json():
     return None
 
 def search_relevant_image_by_title(query):
-    """Busca imágenes estrictamente por coincidencia directa de TÍTULO."""
     images_db = load_imagenes_json()
     if not images_db:
         return None
@@ -221,7 +220,6 @@ def search_relevant_image_by_title(query):
         if target_model and item_model and item_model != target_model:
             continue
 
-        # Coincidencia casi exacta en el título
         if titulo_norm and (titulo_norm == query_norm or titulo_norm in query_norm or query_norm in titulo_norm):
             return item
 
@@ -249,7 +247,6 @@ def generate_voice_file(text, output_file):
 def query_groq_llm(user_prompt, target_model=None, history=None):
     clean_user_input = user_prompt.strip()
 
-    # Manejo de selección explícita 1 o 2 en el chat
     if clean_user_input in ["1", "2"] and history and len(history) >= 2:
         last_assistant_msg = ""
         last_user_msg = ""
@@ -263,7 +260,6 @@ def query_groq_llm(user_prompt, target_model=None, history=None):
                 break
 
         if "Opción 1: Ver el procedimiento" in last_assistant_msg:
-            # Caso elección entre Falla o Imagen
             if clean_user_input == "1":
                 user_prompt = last_user_msg
             else:
@@ -283,7 +279,6 @@ def query_groq_llm(user_prompt, target_model=None, history=None):
     if not GROQ_API_KEY:
         return "- Error: No se ha configurado la clave GROQ_API_KEY en Render.", None
 
-    # Si la consulta aplica a ambos trenes y no se especificó tren, se pide opción de forma sobria
     if not target_model and clean_user_input not in ["1", "2"]:
         q_norm = normalize_text(user_prompt)
         has_mitsu = "mitsubishi" in q_norm or "mitsu" in q_norm
@@ -298,14 +293,12 @@ def query_groq_llm(user_prompt, target_model=None, history=None):
             elif in_caf:
                 target_model = "CAF 6000"
 
-    # Verificar si el título coincide con imagen Y también con procedimiento
     img_match = search_relevant_image_by_title(user_prompt)
     if img_match and clean_user_input not in ["1", "2"]:
         q_norm = normalize_text(user_prompt)
         if any(w in q_norm for w in ["foto", "imagen", "ver imagen", "esquema"]):
             return img_match.get('descripcion', ''), img_match.get('archivo')
         else:
-            # Ofrecer opción de ver resolución o imagen
             return (f"Para la consulta se encontraron dos opciones disponibles:\n\n"
                     f"• Opción 1: Ver el procedimiento / resolución de la falla\n"
                     f"• Opción 2: Ver la imagen explicativa\n\n"
@@ -323,7 +316,7 @@ def query_groq_llm(user_prompt, target_model=None, history=None):
     3. PROHIBIDO TOTALMENTE INVENTAR PASOS, DIAGNÓSTICOS, SISTEMAS O COMPONENTES QUE NO ESTÉN EN EL TEXTO.
     4. MANTÉN EL FORMATO Y VIÑETAS ORIGINALES DEL MANUAL.
     5. NO agregues saludos, frases de cortesía, ni frases tipo "Según el manual..." ni "Para solucionar...". Ve DIRECTO a la información.
-    6. Si la información no se encuentra en el texto provisto, responde estrictamente:
+    6. Si la información no se encuentra en el texto provisto, responde strictly:
        "- No dispongo de la información exacta para esa consulta en los manuales cargados."
 
     CONTENIDO EXTRAÍDO DE LOS MANUALES:
