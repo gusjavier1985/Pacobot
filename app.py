@@ -19,11 +19,10 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# --- MEMORIA TEMPORAL DE ESTADOS POR USUARIO/CHAT ---
-# Guarda en qué punto del menú está el usuario activo
+# Memoria de estado para navegación
 USER_STATES = {}
 
-# --- TEXTOS Y MENÚS ESTÁTICOS ---
+# --- MENÚS ESTÁTICOS ---
 
 MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
 
@@ -69,6 +68,92 @@ AVERIAS_MITSUBISHI_MAP = {
     "14": "14 Un compresor no para"
 }
 
+# --- MENÚ Y DICCIONARIOS DEL CAF 6000 ---
+
+MENU_CAF6000 = """Seleccioná una opción para CAF 6000:
+
+1 - PROCEDIMIENTO ANTE UNA AVERÍA
+2 - INTERRUPCION DEL HILO DE LAZO
+3 - PUERTAS NO ABREN
+4 - PUERTAS NO CIERRAN
+5 - ENCENDER UNA FORMACIÓN CAF 6000
+6 - APAGAR UNA FORMACIÓN CAF 6000
+7 - COCHE FRENADO - POR UNIDAD DE FRENO
+8 - COCHE FRENADO - POR MICROCEF
+9 - BOCINA TRABADA
+10 - BAJAR UN PANTÓGRAFO
+11 - SECCIONAMIENTO NEUMÁTICO
+12 - ESQUEMA DE UBICACIÓN DE ELEMENTOS
+13 - PANEL NEUMÁTICO DE CABINA
+14 - PANEL NEUMÁTICO COCHE REMOLQUE
+15 - B-115 DISTRIBUIDOR DEL FRENO DE ESTACIONAMIENTO
+16 - DETALLE DEL BOGIE Y ANILLA PARA RETIRAR EL FRENO DE ESTACIONAMIENTO
+17 - FORMACIÓN AFLOJA Y NO TRACCIONA (BYPASS DE TRACCIÓN APAGADO)
+18 - DISTRIBUCIÓN DE PUERTAS, LADOS Y COCHES"""
+
+SUBMENU_CAF_LAZO = """Opciones para 2 - INTERRUPCION DEL HILO DE LAZO:
+
+1 - SETA APLICADA
+2 - VARIOS INVERSORES
+3 - TERMICO EN CUALQUIER COCHE
+4 - TERMICO EN COCHE 1
+5 - TERMICO EN COCHE 6"""
+
+TEXTOS_CAF_LAZO = {
+    "1": """1_SETA APLICADA :
+Normalizar la seta aplicada.
+Si no se puede normalizar desconectar en todos los coches térmica "Tiradores de alarma" 53-F1.
+Pulsar Bypass de freno para conducir.
+Descender los pasajeros en el primer anden.""",
+
+    "2": """2_VARIOS INVERSORES:
+Normalizar la inversora en la cabina correspondiente.
+Si no se puede normalizar continuar marcha normal pulsando Bypass de freno y Bypass de tracción""",
+
+    "3": """3_TERMICO EN CUALQUIER COCHE:
+Reponer en el coche afectado térmica "Equipo antibloqueo" (33F1).
+Si no repone proceder ídem. Coche frenado por Micromicef.""",
+
+    "4": """4_TERMICO EN COCHE 1 :
+Reponer térmica "Lazo de emergencia" 52-F1.
+Si no repone pulsar setas de pupitre en cabinas 1 y 6 y desconectar en todos los coches térmica "Tiradores de alarma" 53-F1.
+Pulsar Bypass de freno para conducir.
+Descender los pasajeros en el primer anden.""",
+
+    "5": """5_TERMICO EN COCHE 6 : 
+Reponer térmica "Relé de cola" 57-F1.
+Si no repone continuar marcha normal pulsando Bypass de freno y Bypass de tracción.
+Presión en la cañería principal inferior a 8 kg/cm² :
+Con 6,5 kg/cm² o más pulsar Bypass de freno para conducir.
+Descender los pasajeros en el primer anden.
+Con menos de 6,5 kg/cm² identificar la pérdida y seccionar neumáticamente."""
+}
+
+# Textos directos para las primeras opciones de texto cargadas
+TEXTOS_DIRECTOS_CAF = {
+    "1": "PROCEDIMIENTO ANTE UNA AVERÍA:\n\n(Aquí va el procedimiento general cargado)",
+    "3": "PUERTAS NO ABREN:\n\n(Procedimiento ante falla de apertura de puertas)",
+    "4": "PUERTAS NO CIERRAN:\n\n(Procedimiento ante falla de cierre de puertas)",
+    "5": "ENCENDER UNA FORMACIÓN CAF 6000:\n\n(Pasos de encendido)",
+    "6": "APAGAR UNA FORMACIÓN CAF 6000:\n\n(Pasos de apagado)",
+    "7": "COCHE FRENADO - POR UNIDAD DE FRENO:\n\n(Procedimiento unidad de freno)",
+    "8": "COCHE FRENADO - POR MICROCEF:\n\n(Procedimiento por Microcef)",
+    "9": "BOCINA TRABADA:\n\n(Procedimiento bocina trabada)",
+    "10": "BAJAR UN PANTÓGRAFO:\n\n(Procedimiento para bajar pantógrafo)",
+    "11": "SECCIONAMIENTO NEUMÁTICO:\n\n(Procedimiento de seccionamiento neumático)"
+}
+
+# MAPEO DE OPCIONES DE IMAGEN PARA EL CAF 6000 (Opciones 12 a 18)
+MAPA_IMAGENES_CAF = {
+    "12": "ESQUEMA DE UBICACIÓN DE ELEMENTOS",
+    "13": "PANEL NEUMÁTICO DE CABINA",
+    "14": "PANEL NEUMÁTICO COCHE REMOLQUE",
+    "15": "B-115 DISTRIBUIDOR DEL FRENO DE ESTACIONAMIENTO",
+    "16": "DETALLE DEL BOGIE Y ANILLA PARA RETIRAR EL FRENO DE ESTACIONAMIENTO",
+    "17": "FORMACIÓN AFLOJA Y NO TRACCIONA (BYPASS DE TRACCIÓN APAGADO)",
+    "18": "DISTRIBUCIÓN DE PUERTAS, LADOS Y COCHES"
+}
+
 # --- FUNCIONES AUXILIARES ---
 
 def normalize_text(text):
@@ -110,23 +195,18 @@ def buscar_contenido_literal(busqueda):
     match = pattern.search(PDF_CONTENT)
     if match:
         return match.group(1).strip()
-    return f"Información técnica completa para: {busqueda}\n\n{PDF_CONTENT[:1500]}..."
+    return f"Información técnica para: {busqueda}\n\n{PDF_CONTENT[:1500]}..."
 
-def get_menu_caf6000():
+def obtener_imagen_caf_por_titulo(titulo_buscar):
     images = load_imagenes_json()
-    caf_images = [img for img in images if img.get("modelo") == "CAF 6000"]
-    
-    text = "Opciones disponibles para CAF 6000:\n\n"
-    text += "1 - Procedimientos generales de averías (Manual PDF)\n"
-    
-    idx = 2
-    for img in caf_images:
-        text += f"{idx} - {img.get('titulo', 'Esquema / Imagen CAF')}\n"
-        idx += 1
-        
-    return text, caf_images
+    titulo_norm = normalize_text(titulo_buscar)
+    for img in images:
+        if img.get("modelo") == "CAF 6000":
+            if normalize_text(img.get("titulo", "")) == titulo_norm or titulo_norm in normalize_text(img.get("titulo", "")):
+                return img.get("descripcion", ""), img.get("archivo")
+    return f"Esquema: {titulo_buscar}", None
 
-# --- LÓGICA DE NAVEGACIÓN CORREGIDA ---
+# --- LÓGICA DE NAVEGACIÓN COMPLETA ---
 
 def procesar_flujo_menu(mensaje_user, user_id="default"):
     msg_raw = mensaje_user.strip()
@@ -142,29 +222,25 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None
 
-    # Obtenemos el estado actual del usuario
     estado_actual = USER_STATES.get(user_id, "INICIO")
 
-    # Si no hay estado previo o enviaron cualquier texto libre no numérico
+    # Si entra cualquier texto que no sea un número o no hay estado previo
     if estado_actual == "INICIO" or not msg_clean.isdigit():
         USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None
 
-    # --- NAVEGACIÓN PASO A PASO ---
-
-    # PASO 1: Eligió opción del Menú Principal
+    # --- MENU PRINCIPAL ---
     if estado_actual == "MENU_PRINCIPAL":
         if msg_clean == "1":
             USER_STATES[user_id] = "MENU_MITSUBISHI"
             return MENU_MITSUBISHI, "MENU_MITSUBISHI", None
         elif msg_clean == "2":
             USER_STATES[user_id] = "MENU_CAF"
-            menu_caf, _ = get_menu_caf6000()
-            return menu_caf, "MENU_CAF", None
+            return MENU_CAF6000, "MENU_CAF", None
         else:
             return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None
 
-    # PASO 2: Submenú Mitsubishi
+    # --- SUBMENÚ MITSUBISHI ---
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
             USER_STATES[user_id] = "MITSUBISHI_AVERIAS"
@@ -183,17 +259,17 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None
 
-    # PASO 3: Selección de una de las 14 Averías Mitsubishi
+    # --- MITSUBISHI AVERÍAS ---
     if estado_actual == "MITSUBISHI_AVERIAS":
         if msg_clean in AVERIAS_MITSUBISHI_MAP:
             titulo_averia = AVERIAS_MITSUBISHI_MAP[msg_clean]
             respuesta_literal = buscar_contenido_literal(titulo_averia)
-            USER_STATES[user_id] = "INICIO"  # Reinicia estado tras mostrar la respuesta
+            USER_STATES[user_id] = "INICIO"
             return respuesta_literal, "INICIO", None
         else:
             return f"Opción no válida. Por favor ingresá un número del 1 al 14.\n\n{MENU_AVERIAS_MITSUBISHI}", "MITSUBISHI_AVERIAS", None
 
-    # PASO 4: Esquemas Mitsubishi
+    # --- MITSUBISHI ESQUEMAS ---
     if estado_actual == "MITSUBISHI_ESQUEMAS":
         images = load_imagenes_json()
         mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
@@ -207,29 +283,36 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
             pass
         return "Opción no válida. Por favor seleccioná un número de la lista.", "MITSUBISHI_ESQUEMAS", None
 
-    # PASO 5: Opciones CAF 6000
+    # --- MENÚ CAF 6000 ---
     if estado_actual == "MENU_CAF":
-        menu_caf, caf_images = get_menu_caf6000()
-        if msg_clean == "1":
-            res = buscar_contenido_literal("CAF 6000")
+        if msg_clean == "2":
+            USER_STATES[user_id] = "CAF_LAZO"
+            return SUBMENU_CAF_LAZO, "CAF_LAZO", None
+        elif msg_clean in TEXTOS_DIRECTOS_CAF:
+            text = TEXTOS_DIRECTOS_CAF[msg_clean]
+            USER_STATES[user_id] = "INICIO"
+            return text, "INICIO", None
+        elif msg_clean in MAPA_IMAGENES_CAF:
+            titulo = MAPA_IMAGENES_CAF[msg_clean]
+            desc, archivo = obtener_imagen_caf_por_titulo(titulo)
+            USER_STATES[user_id] = "INICIO"
+            return desc, "INICIO", archivo
+        else:
+            return f"Opción no válida.\n\n{MENU_CAF6000}", "MENU_CAF", None
+
+    # --- SUBMENÚ CAF 6000: INTERRUPCIÓN DEL HILO DE LAZO ---
+    if estado_actual == "CAF_LAZO":
+        if msg_clean in TEXTOS_CAF_LAZO:
+            res = TEXTOS_CAF_LAZO[msg_clean]
             USER_STATES[user_id] = "INICIO"
             return res, "INICIO", None
         else:
-            try:
-                opc_idx = int(msg_clean) - 2
-                if 0 <= opc_idx < len(caf_images):
-                    item = caf_images[opc_idx]
-                    USER_STATES[user_id] = "INICIO"
-                    return item.get("descripcion", ""), "INICIO", item.get("archivo")
-            except ValueError:
-                pass
-            return f"Opción no válida.\n\n{menu_caf}", "MENU_CAF", None
+            return f"Opción no válida.\n\n{SUBMENU_CAF_LAZO}", "CAF_LAZO", None
 
-    # Por defecto ante cualquier inconsistencia, reinicia al Menú Principal
     USER_STATES[user_id] = "MENU_PRINCIPAL"
     return MENU_INICIAL, "MENU_PRINCIPAL", None
 
-# --- GENERACIÓN DE AUDIO (TTS) ---
+# --- GENERACIÓN DE AUDIO ---
 
 def generate_voice_file(text, output_file):
     if not text:
@@ -247,14 +330,14 @@ def generate_voice_file(text, output_file):
         loop.close()
         return os.path.exists(output_file)
     except Exception as e:
-        print(f"Error generando audio TTS: {e}")
+        print(f"Error TTS: {e}")
         return False
 
-# --- API ENDPOINTS ---
+# --- RUTAS DE API ---
 
 @app.route('/', methods=['GET'])
 def health_check():
-    return "Bot Paco API Activo", 200
+    return "Bot Paco API OK", 200
 
 @app.route('/preguntar', methods=['POST', 'OPTIONS'])
 def api_preguntar():
@@ -312,5 +395,5 @@ def get_image(filename):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    print(f"🤖 Bot Paco en ejecución en puerto {port}...")
+    print(f"🤖 Bot Paco listo en el puerto {port}...")
     app.run(host="0.0.0.0", port=port)
