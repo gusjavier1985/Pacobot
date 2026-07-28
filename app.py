@@ -129,10 +129,28 @@ Descender los pasajeros en el primer anden.
 Con menos de 6,5 kg/cm² identificar la pérdida y seccionar neumáticamente."""
 }
 
+# TEXTOS DIRECTOS ESPECÍFICOS CAF 6000 (Opciones 1, 3 y 4)
+TEXTOS_DIRECTOS_CAF = {
+    "1": """1- PROCEDIMIENTO ANTE UNA AVERÍA:
+
+- Identificar el fallo en la pantalla/panel de cabina.
+- Verificar el estado de térmicos y lazos de seguridad.
+- Aplicar el procedimiento específico según el código o síntoma del equipo.""",
+
+    "3": """3- PUERTAS NO ABREN:
+
+- Verificar habilitación de lado de plataforma.
+- Revisar presión de aire en circuito auxiliar.
+- Verificar estado de térmicos de mando de puertas.""",
+
+    "4": """4- PUERTAS NO CIERRAN:
+
+- Verificar si hay obstrucción física en el bucle de puertas.
+- Comprobar que ninguna seta de emergencia esté accionada.
+- Verificar indicador de lazo de puertas en pupitre de conducción."""
+}
+
 MAPA_TITULOS_CAF = {
-    "1": "PROCEDIMIENTO ANTE UNA AVERÍA",
-    "3": "PUERTAS NO ABREN",
-    "4": "PUERTAS NO CIERRAN",
     "5": "ENCENDER UNA FORMACIÓN CAF 6000",
     "6": "APAGAR UNA FORMACIÓN CAF 6000",
     "7": "COCHE FRENADO - POR UNIDAD DE FRENO",
@@ -198,14 +216,14 @@ def obtener_item_caf_por_titulo_o_indice(num_opcion):
     titulo_buscado = MAPA_TITULOS_CAF.get(num_opcion, "")
     titulo_norm = normalize_text(titulo_buscado)
 
-    # 1. Buscar coincidencia por título en imagenes.json
+    # 1. Coincidencia exacta por título
     for img in caf_items:
         t_json = normalize_text(img.get("titulo", ""))
-        if titulo_norm and (titulo_norm in t_json or t_json in titulo_norm):
+        if titulo_norm and t_json == titulo_norm:
             desc = img.get("descripcion") or img.get("titulo") or titulo_buscado
             return desc, img.get("archivo")
 
-    # 2. Si no coincide el título exacto, buscar por índice de lista
+    # 2. Coincidencia por índice de la lista en JSON si no es exacta
     try:
         idx = int(num_opcion) - 1
         if 0 <= idx < len(caf_items):
@@ -299,6 +317,10 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         if msg_clean == "2":
             USER_STATES[user_id] = "CAF_LAZO"
             return SUBMENU_CAF_LAZO, "CAF_LAZO", None, False
+        elif msg_clean in TEXTOS_DIRECTOS_CAF:
+            res = TEXTOS_DIRECTOS_CAF[msg_clean]
+            USER_STATES[user_id] = "INICIO"
+            return res, "INICIO", None, True  # Respuesta final -> Genera Audio
         elif msg_clean in MAPA_TITULOS_CAF:
             desc, archivo = obtener_item_caf_por_titulo_o_indice(msg_clean)
             USER_STATES[user_id] = "INICIO"
@@ -370,7 +392,7 @@ def api_preguntar():
 
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
-        # Solo generar e incluir audio si se llegó a una respuesta técnica final
+        # Genera e incluye audio únicamente si se llegó a la respuesta final
         audio_url = None
         if es_respuesta_final and respuesta_texto:
             filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
