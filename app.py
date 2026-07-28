@@ -22,50 +22,337 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # Memoria de estado para navegación por chat
 USER_STATES = {}
 
-# --- MENÚS ESTÁTICOS ---
+# --- MENÚS ESTÁTICOS GENERALES ---
 
 MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
 
 1 - Mitsubishi
 2 - CAF 6000"""
 
-MENU_MITSUBISHI = """Opciones para Mitsubishi:
+# --- MENÚS Y TEXTOS MITSUBISHI ---
 
-1 - Averías
-2 - Ubicación de instrumentos / Esquemas"""
+MENU_MITSUBISHI = """Seleccioná una opción para Mitsubishi:
 
-MENU_AVERIAS_MITSUBISHI = """Seleccioná el número de la avería de Mitsubishi:
+1_ENCENDIDO
+2_ESTACIONAMIENTO
+3_RESOLUCION DE AVERIAS
 
-1 - Falla Fatal de ATP
-2 - Ausencia de velocidad objetivo o velocidad objetivo cero
-3 - BP no carga
-4 - No se puede conducir desde la cabina delantera
-5 - Seccionar en plataforma
+resultados con imágenes:
+4_UBICACION Y ESQUEMAS
+5_CONDUCCION
+6_PUERTAS
+7_EXTERIOR Y RELAY"""
+
+TEXTO_MITSUBISHI_ENCENDIDO = """1_ENCENDIDO
+
+1-En la cabina del coche n°1 (Punta Rosas),Encender el coche conectando los NFB que se encuentran pintados de blanco a saber:
+
+•Batería
+•Compresor
+•Motogenerador
+•Auxiliar de alta
+
+2- Confirmar que el conmutador de dirección se encuentre en posición trasero y proceder a la apertura de puertas de ambos lados
+
+3- Efectuar una revisión visual del buen estado de todos los elementos dentro de la cabina:
+•Asiento del conductor
+•Vidrios
+•Amperímetro
+•Voltímetros
+•Manómetros
+•Llaves NFB (estado y posición)
+•Teléfonos (estado y funcionamiento)
+•Llave o cuchilla de enclavamiento en la posición adelante (Enclavamiento habilitado)
+•Estado de la llave de modalidad y AL (Aislado Limitado)
+
+4- Comprobar el encendido de las luces de cola, cabecera y cabina"""
+
+TEXTO_MITSUBISHI_ESTACIONAMIENTO = """2_ESTACIONAMIENTO:
+
+1-En la cabina del coche n°1 (Punta Rosas),Apagar el coche desconectando los NFB que se encuentran pintados de blanco a saber:
+• Auxiliar de alta
+• Motogenerador
+•Compresor
+•Batería
+
+2- Colocar el conmutador de dirección en posición trasero.
+En todos los coches:
+
+3- Apagar el coche de acuerdo al punto 1 de estacionamiento
+
+4- Retirar las herramientas
+
+5- Calzar el tren"""
+
+SUBMENU_MITSUBISHI_AVERIAS = """Seleccioná el número de la avería de Mitsubishi:
+
+1 - Falla fatal ATP
+2 - Ausencia de velocidad objetivo o velocidad objetivo Cero
+3 - BP no Carga
+4 - No se puede conducir de cabina delantera
+5 - Seccionar en Plataforma
 6 - Tren no arranca con luz de aviso apagada
 7 - Tren no arranca con luz de aviso encendida
 8 - Luz de BO
-9 - Luz de BO y OLR
-10 - Puertas no abren
-11 - Puertas no cierran
+9 - Luces de BO y OLR encendidas
+10 - Puertas no Abren
+11 - Puertas no Cierran
 12 - Alarma sonora no funciona
-13 - Temporizador
-14 - Un compresor no para"""
+13 - Falla de Temporizador
+14 - Compresor no para"""
 
-AVERIAS_MITSUBISHI_MAP = {
-    "1": "1 Falla Fatal de ATP",
-    "2": "2 Ausencia de velocidad objetivo o velocidad objetivo cero",
-    "3": "3 BP no carga",
-    "4": "4 No se puede conducir desde la cabina delantera",
-    "5": "5 Seccionar en plataforma",
-    "6": "6 Tren no arranca con luz de aviso apagada",
-    "7": "7 Tren no arranca con luz de aviso encendida",
-    "8": "8 Luz de BO",
-    "9": "9 Luz de BO y OLR",
-    "10": "10 Puertas no abren",
-    "11": "11 Puertas no cierran",
-    "12": "12 Alarma sonora no funciona",
-    "13": "13 Temporizador",
-    "14": "14 Un compresor no para"
+TEXTOS_MITSUBISHI_AVERIAS = {
+    "1": """1-Falla fatal ATP
+
+•Verificar código de falla.
+•Resetear y verificar
+•Pasar a CL y verificar
+•Pedir autorización al PCO / CTC, pasar a
+•AL y verificar
+•Solicitar presencia de MR
+
+Toda vez que se efectúe una verificación, de ser el resultado positivo, continuar la marcha poniendo en conocimiento al PCO""",
+
+    "2": """2_Ausencia de velocidad objetivo o velocidad objetivo Cero
+
+-Confirmar con el PCO
+-Solicitar autorización al PCO y pasar a CL""",
+
+    "3": """3_BP no Carga
+
+MPI Apagado:
+Verificar:
+-NFB de Control conectada
+-NFB de freno conectada
+-NFB de ATP conectada
+
+MPI Encendido:
+-Verificar inversora de marcha en posición correcta
+-Falla de ATP
+-Verificar Paratren
+-Emergencias de cabina
+-Electrovávulas EMV1 o EMV2
+-Pérdidas a localizar""",
+
+    "4": """4_No se puede conducir de cabina delantera
+
+Previo aviso al PCO:
+-Ir a la cabina trasera
+-Desconectar enclavamiento de puertas
+-Colocar ATP en modalidad AL.
+-Colocar personal idóneo para la tarea de piloto
+-Verificar sistemas de comunicación
+-Viaje directo sin Pasajeros.""",
+
+    "5": """5_Seccionar en Plataforma
+
+-Solicitar corte de corriente en plataforma
+-Accionar grifos interruptores
+-Conducir con la mayor cantidad de coches a favor
+-Liberar freno de los coches afectados (palanca roja y grifo verde)
+-Anular enclavamiento
+-Colocar en AL""",
+
+    "6": """6_Tren no arranca con luz de aviso apagada
+
+-Verificar aire en el BP
+-Verificar conmutadores
+-Verificar Puertas Cerradas
+-Verificar NFB de luz de aviso en la cabina del Guarda
+-Si el tren no arranca, sacar el enclavamiento de puertas y probar
+-Dar aviso al PCO y realizar viaje normal a cabecera con las precauciones de circular sin enclavamiento de puertas""",
+
+    "7": """7_Tren no arranca con luz de aviso encendida
+
+-Verificar aire en el BP
+-Verificar tensión (650 Vcc)
+-Verificar en el control maestro un punto atrás
+-Accionar varias veces el Hombre Muerto
+-Sacar enclavamiento de puertas y probar
+-De no arrancar manejar de la cabina de cola según procedimiento""",
+
+    "8": """8_Luz de BO
+
+-Indica que en un coche de la formación no circula corriente por los motores de tracción (a remolque sin freno dinámico)
+-Colocar la inversión en posición NEUTRO, volver a la posición ADELANTE y verificar si la falla desaparece
+-Determinar con el Guarda si es un coche de punta o intermedio mediante los amperímetros de cabina
+-Continuar viaje dando aviso al PCO y tomando las precauciones del caso""",
+
+    "9": """9_Luces de BO y OLR encendidas
+
+-Identificar el coche en el que actuó la protección del circuito de tracción
+-Reponer""",
+
+    "10": """10_Puertas no Abren
+
+De toda la formación:
+-Verificar falso contacto en control de puertas
+-Verificar conmutadores
+-NFB de motor de puertas coche trasero
+-Anular SPD (cuchilla arriba)
+-Anular sistema temporizador de puertas
+
+De un coche:
+-Eléctrico: NFB o cuchillas de ese coche
+-Neumático: Grifos generales o emergencia de puertas
+
+Una puerta:
+-Neumático: Grifo individual
+-Mecánico: puerta trabada o descarrilada""",
+
+    "11": """11_Puertas no Cierran
+
+De toda la formación:
+-Verificar conmutadores
+-Anular sistema temporizador de puertas
+
+De un coche:
+-Verificar grifo general de puertas.
+-Verificar emergencia de puertas
+
+Una puerta:
+-Verificar grifo de esa puerta
+-Puerta trabada o descarrilada
+-Si no se puede solucionar desairar y encerrojar""",
+
+    "12": """12_Alarma sonora no funciona
+
+-Verificar llave metálica tipo perilla en posición IZQUIERDA
+-Si no normaliza finalizar el viaje dando aviso de cierre de puertas con el silbato""",
+
+    "13": """13_Falla de Temporizador
+
+-Verificar cuchilla del SPD
+-Verificar Conmutadores de Dirección
+
+-De no solucionarse la avería volver al sistema original:
+-Conectar cuchillas del SPD hacia arriba
+-Romper precinto de temporizado de puertas
+-Continuar viaje de acuerdo a procedimiento de falta de alarma sonora""",
+
+    "14": """14_Compresor no para
+
+-Verificar el accionamiento de la válvula de seguridad y de drenaje mediante el manómetro de compresor (lectura normal entre 7 y 9 Kg)
+-De no parar desconectar NFB de compresor del coche afectado
+-Si el coche afectado es desde el cual se está conduciendo se puede verificar una reducción del frenado por lo cual se deben extremar las precauciones del caso"""
+}
+
+# --- SUBMENÚS CON IMÁGENES MITSUBISHI ---
+
+SUBMENU_MITSU_CAT4 = """4_UBICACION Y ESQUEMAS:
+
+1 - Extinguidor de incendios
+2 - Escaleras de evacuación
+3 - Emergencia acústica
+4 - Emergencia de puertas
+5 - Probador de tensión
+6 - Esquema de distribución de los elementos de seguridad
+7 - Luz indicadora de alarma
+8 - NFB de Cabina (ubicación)
+9 - Armario lateral
+10 - Conmutador de dirección
+11 - Distribucion de puertas y lados"""
+
+MAPA_CAT4 = {
+    "1": "Extinguidor de incendios",
+    "2": "Escaleras de evacuación",
+    "3": "Emergencia acústica",
+    "4": "Emergencia de puertas",
+    "5": "Probador de tensión",
+    "6": "Esquema de distribución de los elementos de seguridad",
+    "7": "Luz indicadora de alarma",
+    "8": "NFB de Cabina",
+    "9": "Armario lateral",
+    "10": "Conmutador de dirección",
+    "11": "Distribucion de puertas y lados"
+}
+
+SUBMENU_MITSU_CAT5 = """5_CONDUCCIÓN:
+
+1 - Manómetro doble
+2 - Velocímetro
+3 - Control de marcha
+4 - Control de freno (ME42)
+5 - Luz de aviso al conductor
+6 - Amperímetro
+7 - Voltímetro de alta tensión
+8 - Voltímetro de baja tensión
+9 - Luces indicadoras
+10 - Dispositivo de paratren ( caja de control )
+11 - Interruptor de control CT (Anulado)
+12 - Botón de reset del OLR
+13 - Llave de modalidad CMC - CL
+14 - Botón de arranque
+15 - Llave de A.L y Llave de reset
+16 - Caja controladora del MG
+17 - Modo de operación CMC (Conducción Manual Controlada)
+18 - Modo de operación CL (Conducción Limitada)
+19 - Modo de operación AL (Aislado Limitado)
+20 - Detección y gestión de falla del ATP de Abordo
+21 - MPI (Modulo Principal de Informaciones)
+22 - MPI (Modulo Principal de Informaciones) sus funciones"""
+
+MAPA_CAT5 = {
+    "1": "Manómetro doble",
+    "2": "Velocímetro",
+    "3": "Control de marcha",
+    "4": "Control de freno (ME42)",
+    "5": "Luz de aviso al conductor",
+    "6": "Amperímetro",
+    "7": "Voltímetro de alta tensión",
+    "8": "Voltímetro de baja tensión",
+    "9": "Luces indicadoras",
+    "10": "Dispositivo de paratren",
+    "11": "Interruptor de control CT",
+    "12": "Botón de reset del OLR",
+    "13": "Llave de modalidad CMC - CL",
+    "14": "Botón de arranque",
+    "15": "Llave de A.L y Llave de reset",
+    "16": "Caja controladora del MG",
+    "17": "Modo de operación CMC",
+    "18": "Modo de operación CL",
+    "19": "Modo de operación AL",
+    "20": "Detección y gestión de falla del ATP de Abordo",
+    "21": "MPI (Modulo Principal de Informaciones)",
+    "22": "MPI (Modulo Principal de Informaciones) sus funciones"
+}
+
+SUBMENU_MITSU_CAT6 = """6_PUERTAS:
+
+1 - Interruptor de enclavamiento
+2 - Emergencia de cabina
+3 - Control de puertas
+4 - Temporizado de puertas
+5 - Llave de conmutación de cierre de puertas
+6 - Control de puertas para el conductor (sin habilitar)
+7 - Interruptor de cortocircuito de cierre de puertas
+8 - Grifos de puertas
+9 - Motor de puertas"""
+
+MAPA_CAT6 = {
+    "1": "Interruptor de enclavamiento",
+    "2": "Emergencia de cabina",
+    "3": "Control de puertas",
+    "4": "Temporizado de puertas",
+    "5": "Llave de conmutación de cierre de puertas",
+    "6": "Control de puertas para el conductor",
+    "7": "Interruptor de cortocircuito de cierre de puertas",
+    "8": "Grifos de puertas",
+    "9": "Motor de puertas"
+}
+
+SUBMENU_MITSU_CAT7 = """7_EXTERIOR, GRIFOS Y RELAY:
+
+1 - Grifo interruptor
+2 - Electroválvulas de emergencia (EMV1 y EMV2)
+3 - Dispositivo de accionamiento A1
+4 - Caja controladora del MG"""
+
+MAPA_CAT7 = {
+    "1": "Grifo interruptor",
+    "2": "Electroválvulas de emergencia",
+    "3": "Dispositivo de accionamiento A1",
+    "4": "Caja controladora del MG"
 }
 
 # --- MENÚ Y SUBMENÚ CAF 6000 ---
@@ -129,7 +416,6 @@ Descender los pasajeros en el primer anden.
 Con menos de 6,5 kg/cm² identificar la pérdida y seccionar neumáticamente."""
 }
 
-# TEXTOS DIRECTOS LITERALES Y EXACTOS PARA CAF 6000 (Opciones 1, 3 y 4)
 TEXTOS_DIRECTOS_CAF = {
     "1": """1-PROCEDIMIENTO ANTE UNA AVERÍA
 Este procedimiento es para evitar una
@@ -247,28 +533,20 @@ def load_imagenes_json():
                 print(f"Error leyendo {json_path}: {e}")
     return []
 
-def get_pdf_text():
-    full_text = ""
-    pdf_files = sorted(glob.glob(os.path.join(BASE_DIR, "*.pdf")))
-    for pdf in pdf_files:
-        try:
-            reader = PdfReader(pdf)
-            for page in reader.pages:
-                t = page.extract_text()
-                if t:
-                    full_text += t + "\n"
-        except Exception as e:
-            print(f"Error leyendo PDF {pdf}: {e}")
-    return full_text
+def buscar_imagen_por_titulo(modelo, titulo_buscado):
+    # Caso especial reutilización de foto CAF 6000 para opción 11 de Ubicación y Esquemas
+    if modelo == "Mitsubishi" and "distribucion de puertas y lados" in normalize_text(titulo_buscado):
+        return "14_DISTRIBUCION_DE_PUERTAS_Y_LADOS.jpg"
 
-PDF_CONTENT = get_pdf_text()
-
-def buscar_contenido_literal(busqueda):
-    pattern = re.compile(rf"({re.escape(busqueda)}.*?)(?=\n\d+\s+[A-Z]|\Z)", re.DOTALL | re.IGNORECASE)
-    match = pattern.search(PDF_CONTENT)
-    if match:
-        return match.group(1).strip()
-    return f"Información técnica para: {busqueda}\n\n{PDF_CONTENT[:1500]}..."
+    images = load_imagenes_json()
+    t_norm = normalize_text(titulo_buscado)
+    
+    for img in images:
+        if img.get("modelo") == modelo:
+            t_json = normalize_text(img.get("titulo", ""))
+            if t_norm and (t_norm in t_json or t_json in t_norm):
+                return img.get("archivo")
+    return None
 
 def obtener_item_caf_por_titulo_o_indice(num_opcion):
     images = load_imagenes_json()
@@ -276,14 +554,12 @@ def obtener_item_caf_por_titulo_o_indice(num_opcion):
     titulo_buscado = MAPA_TITULOS_CAF.get(num_opcion, "")
     titulo_norm = normalize_text(titulo_buscado)
 
-    # 1. Coincidencia exacta por título
     for img in caf_items:
         t_json = normalize_text(img.get("titulo", ""))
         if titulo_norm and t_json == titulo_norm:
             desc = img.get("descripcion") or img.get("titulo") or titulo_buscado
             return desc, img.get("archivo")
 
-    # 2. Coincidencia por índice de la lista en JSON
     try:
         idx = int(num_opcion) - 1
         if 0 <= idx < len(caf_items):
@@ -295,25 +571,22 @@ def obtener_item_caf_por_titulo_o_indice(num_opcion):
 
     return f"Información sobre: {titulo_buscado}", None
 
-# --- LÓGICA DE NAVEGACIÓN ---
+# --- LÓGICA DE NAVEGACIÓN COMPLETA ---
 
 def procesar_flujo_menu(mensaje_user, user_id="default"):
     msg_raw = mensaje_user.strip()
     msg_clean = normalize_text(msg_raw)
     
-    # Excepción para Novedades (Base44)
     if msg_clean in ["novedad", "novedades"]:
         USER_STATES[user_id] = "INICIO"
         return None, "INICIO", None, False
 
-    # Comando explícito de inicio o reseteo
     if msg_clean in ["hola", "inicio", "menu", "reset", "0"]:
         USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None, False
 
     estado_actual = USER_STATES.get(user_id, "INICIO")
 
-    # Si ingresan texto libre o no hay estado
     if estado_actual == "INICIO" or not msg_clean.isdigit():
         USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None, False
@@ -329,48 +602,80 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None, False
 
-    # --- SUBMENÚ MITSUBISHI ---
+    # --- MENU MITSUBISHI ---
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
-            USER_STATES[user_id] = "MITSUBISHI_AVERIAS"
-            return MENU_AVERIAS_MITSUBISHI, "MITSUBISHI_AVERIAS", None, False
+            USER_STATES[user_id] = "INICIO"
+            return TEXTO_MITSUBISHI_ENCENDIDO, "INICIO", None, True
         elif msg_clean == "2":
-            images = load_imagenes_json()
-            mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
-            if not mitsu_images:
-                return "No hay esquemas cargados para Mitsubishi.\n\n" + MENU_MITSUBISHI, "MENU_MITSUBISHI", None, False
-            
-            USER_STATES[user_id] = "MITSUBISHI_ESQUEMAS"
-            out = "Ubicación de instrumentos y esquemas Mitsubishi:\n\n"
-            for i, img in enumerate(mitsu_images, start=1):
-                out += f"{i} - {img.get('titulo')}\n"
-            return out, "MITSUBISHI_ESQUEMAS", None, False
+            USER_STATES[user_id] = "INICIO"
+            return TEXTO_MITSUBISHI_ESTACIONAMIENTO, "INICIO", None, True
+        elif msg_clean == "3":
+            USER_STATES[user_id] = "MITSU_AVERIAS"
+            return SUBMENU_MITSUBISHI_AVERIAS, "MITSU_AVERIAS", None, False
+        elif msg_clean == "4":
+            USER_STATES[user_id] = "MITSU_CAT4"
+            return SUBMENU_MITSU_CAT4, "MITSU_CAT4", None, False
+        elif msg_clean == "5":
+            USER_STATES[user_id] = "MITSU_CAT5"
+            return SUBMENU_MITSU_CAT5, "MITSU_CAT5", None, False
+        elif msg_clean == "6":
+            USER_STATES[user_id] = "MITSU_CAT6"
+            return SUBMENU_MITSU_CAT6, "MITSU_CAT6", None, False
+        elif msg_clean == "7":
+            USER_STATES[user_id] = "MITSU_CAT7"
+            return SUBMENU_MITSU_CAT7, "MITSU_CAT7", None, False
         else:
             return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None, False
 
-    # --- RESPUESTA FINAL: MITSUBISHI AVERÍAS ---
-    if estado_actual == "MITSUBISHI_AVERIAS":
-        if msg_clean in AVERIAS_MITSUBISHI_MAP:
-            titulo_averia = AVERIAS_MITSUBISHI_MAP[msg_clean]
-            respuesta_literal = buscar_contenido_literal(titulo_averia)
+    # --- MITSUBISHI: AVERÍAS ---
+    if estado_actual == "MITSU_AVERIAS":
+        if msg_clean in TEXTOS_MITSUBISHI_AVERIAS:
+            res = TEXTOS_MITSUBISHI_AVERIAS[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return respuesta_literal, "INICIO", None, True  # Genera Audio
+            return res, "INICIO", None, True
         else:
-            return f"Opción no válida. Por favor ingresá un número del 1 al 14.\n\n{MENU_AVERIAS_MITSUBISHI}", "MITSUBISHI_AVERIAS", None, False
+            return f"Opción no válida.\n\n{SUBMENU_MITSUBISHI_AVERIAS}", "MITSU_AVERIAS", None, False
 
-    # --- RESPUESTA FINAL: MITSUBISHI ESQUEMAS ---
-    if estado_actual == "MITSUBISHI_ESQUEMAS":
-        images = load_imagenes_json()
-        mitsu_images = [img for img in images if img.get("modelo") == "Mitsubishi"]
-        try:
-            idx = int(msg_clean) - 1
-            if 0 <= idx < len(mitsu_images):
-                item = mitsu_images[idx]
-                USER_STATES[user_id] = "INICIO"
-                return item.get("descripcion", ""), "INICIO", item.get("archivo"), True  # Genera Audio
-        except ValueError:
-            pass
-        return "Opción no válida. Por favor seleccioná un número de la lista.", "MITSUBISHI_ESQUEMAS", None, False
+    # --- MITSUBISHI: CAT 4 (UBICACIÓN Y ESQUEMAS) ---
+    if estado_actual == "MITSU_CAT4":
+        if msg_clean in MAPA_CAT4:
+            titulo = MAPA_CAT4[msg_clean]
+            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            USER_STATES[user_id] = "INICIO"
+            return f"4_UBICACION Y ESQUEMAS: {titulo}", "INICIO", archivo, True
+        else:
+            return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT4}", "MITSU_CAT4", None, False
+
+    # --- MITSUBISHI: CAT 5 (CONDUCCIÓN) ---
+    if estado_actual == "MITSU_CAT5":
+        if msg_clean in MAPA_CAT5:
+            titulo = MAPA_CAT5[msg_clean]
+            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            USER_STATES[user_id] = "INICIO"
+            return f"5_CONDUCCIÓN: {titulo}", "INICIO", archivo, True
+        else:
+            return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT5}", "MITSU_CAT5", None, False
+
+    # --- MITSUBISHI: CAT 6 (PUERTAS) ---
+    if estado_actual == "MITSU_CAT6":
+        if msg_clean in MAPA_CAT6:
+            titulo = MAPA_CAT6[msg_clean]
+            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            USER_STATES[user_id] = "INICIO"
+            return f"6_PUERTAS: {titulo}", "INICIO", archivo, True
+        else:
+            return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT6}", "MITSU_CAT6", None, False
+
+    # --- MITSUBISHI: CAT 7 (EXTERIOR, GRIFOS Y RELAY) ---
+    if estado_actual == "MITSU_CAT7":
+        if msg_clean in MAPA_CAT7:
+            titulo = MAPA_CAT7[msg_clean]
+            archivo = buscar_imagen_por_titulo("Mitsubishi", titulo)
+            USER_STATES[user_id] = "INICIO"
+            return f"7_EXTERIOR, GRIFOS Y RELAY: {titulo}", "INICIO", archivo, True
+        else:
+            return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT7}", "MITSU_CAT7", None, False
 
     # --- MENÚ CAF 6000 ---
     if estado_actual == "MENU_CAF":
@@ -380,20 +685,20 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         elif msg_clean in TEXTOS_DIRECTOS_CAF:
             res = TEXTOS_DIRECTOS_CAF[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return res, "INICIO", None, True  # Respuesta final -> Genera Audio
+            return res, "INICIO", None, True
         elif msg_clean in MAPA_TITULOS_CAF:
             desc, archivo = obtener_item_caf_por_titulo_o_indice(msg_clean)
             USER_STATES[user_id] = "INICIO"
-            return desc, "INICIO", archivo, True  # Respuesta final -> Genera Audio
+            return desc, "INICIO", archivo, True
         else:
             return f"Opción no válida.\n\n{MENU_CAF6000}", "MENU_CAF", None, False
 
-    # --- RESPUESTA FINAL: SUBMENÚ CAF LAZO ---
+    # --- SUBMENÚ CAF LAZO ---
     if estado_actual == "CAF_LAZO":
         if msg_clean in TEXTOS_CAF_LAZO:
             res = TEXTOS_CAF_LAZO[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return res, "INICIO", None, True  # Respuesta final -> Genera Audio
+            return res, "INICIO", None, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_CAF_LAZO}", "CAF_LAZO", None, False
 
