@@ -13,7 +13,8 @@ import edge_tts
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AUDIO_DIR = os.path.join(BASE_DIR, "static_audio")
 IMAGE_DIR = os.path.join(BASE_DIR, "static_images")
-PDF_PATH = os.path.join(BASE_DIR, "Instrucciones_de_servicio.pdf")
+# Nombre del PDF en tu repositorio
+PDF_PATH = os.path.join(BASE_DIR, "instrucciones_de_servicio_linea_b.pdf")
 
 os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
@@ -228,39 +229,48 @@ MAPEO_OPCIONES_IS = {
     "11": {"1": "2", "2": "6", "3": "7", "4": "9", "5": "12", "6": "22", "7": "26", "8": "28", "9": "30", "10": "31", "11": "33", "12": "42", "13": "43", "14": "46", "15": "52", "16": "53", "17": "56", "18": "58"}
 }
 
-# --- LECTURA Y BÚSQUEDA EN EL PDF DE INSTRUCCIONES DE SERVICIO ---
+# --- LECTURA Y BÚSQUEDA DINÁMICA EN EL PDF ---
 
 def buscar_instruccion_en_pdf(num_is):
     if not os.path.exists(PDF_PATH):
-        return f"Instrucción de Servicio N° {num_is}\n\n(No se encontró el archivo Instrucciones_de_servicio.pdf en la raíz del proyecto)."
+        return f"Instrucción de Servicio N° {num_is}\n\n(No se encontró el archivo {os.path.basename(PDF_PATH)} en el repositorio)."
 
     try:
         reader = PdfReader(PDF_PATH)
         texto_completo = ""
         for i, page in enumerate(reader.pages):
             t = page.extract_text() or ""
-            texto_completo += f"\n--- PAGINA {i+1} ---\n" + t
+            texto_completo += f"\n {t}"
 
-        # Regex flexible: acepta 'IS N° 41', 'INSTRUCCION... 41' O simplemente '41 -' / '41.-' al inicio de línea
+        # Patrón principal para ubicar la IS seleccionada
         pattern = rf"(IS\s*N[°º]?\s*{num_is}\b|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*{num_is}\b|^\s*{num_is}\s*[-–\.\)])"
         matches = list(re.finditer(pattern, texto_completo, re.IGNORECASE | re.MULTILINE))
 
         if not matches:
-            return f"Se seleccionó la IS N° {num_is}, pero no se localizó la sección exacta dentro del PDF."
+            return f"Se seleccionó la IS N° {num_is}, pero no se localizó la sección dentro del archivo PDF."
 
         inicio = matches[0].start()
-        # Cortamos un fragmento representativo (~1800 caracteres) desde el inicio encontrado
-        contenido = texto_completo[inicio:inicio + 1800].strip()
 
-        # Si el fragmento incluye el inicio de otra IS posterior, recortamos hasta ese punto
-        siguiente_is = re.search(r"\n\s*(IS\s*N[°º]?\s*\d+|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*\d+|\d+\s*[-–\.\)])", contenido[50:], re.IGNORECASE)
-        if siguiente_is:
-            contenido = contenido[:50 + siguiente_is.start()].strip()
+        # Buscamos dónde arranca la siguiente IS para recortar exactamente el bloque completo
+        siguiente_match = re.search(
+            r"\n\s*(IS\s*N[°º]?\s*\d+|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*\d+|N[°º]\s*\d+)", 
+            texto_completo[inicio + 30:], 
+            re.IGNORECASE
+        )
 
-        return contenido
+        if siguiente_match:
+            fin = inicio + 30 + siguiente_match.start()
+            contenido = texto_completo[inicio:fin].strip()
+        else:
+            # Si era la última IS del archivo, toma desde el inicio hasta el final
+            contenido = texto_completo[inicio:].strip()
+
+        # Limpiamos saltos de línea excesivos acumulados por la extracción del PDF
+        contenido_limpio = re.sub(r'\n{3,}', '\n\n', contenido)
+        return contenido_limpio
 
     except Exception as e:
-        return f"Error al leer el archivo PDF: {str(e)}"
+        return f"Error al procesar la búsqueda en el PDF: {str(e)}"
 
 # --- MENÚS Y TEXTOS MITSUBISHI ---
 
