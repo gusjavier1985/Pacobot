@@ -719,18 +719,29 @@ def api_preguntar():
 
         respuesta_texto, nuevo_estado, archivo_imagen, es_respuesta_final = procesar_flujo_menu(pregunta, user_id=user_id)
 
-        # Si passthrough es True, la respuesta proviene de la consulta libre/Base44
-        if respuesta_texto is None:
-            return jsonify({
-                'passthrough': True,
-                'respuesta_texto': None,
-                'nuevo_estado': 'INICIO'
-            }), 200
-
         host_url = request.host_url.rstrip('/')
         if host_url.startswith("http://"):
             host_url = host_url.replace("http://", "https://", 1)
 
+        # SI ES UNA CONSULTA LIBRE / NOVEDAD DE BASE44
+        if respuesta_texto is None:
+            texto_base44 = data.get('base44_response') or data.get('text_to_speech') or pregunta
+            
+            audio_url = None
+            if texto_base44:
+                filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
+                filepath_audio = os.path.join(AUDIO_DIR, filename_audio)
+                if generate_voice_file(texto_base44, filepath_audio):
+                    audio_url = f"{host_url}/audio/{filename_audio}"
+
+            return jsonify({
+                'passthrough': True,
+                'respuesta_texto': texto_base44,
+                'nuevo_estado': 'INICIO',
+                'audio_url': audio_url
+            }), 200
+
+        # MODO MENÚS LOCALES (MITSUBISHI, CAF, PACO)
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
         audio_url = None
