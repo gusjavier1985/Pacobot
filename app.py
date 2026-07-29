@@ -753,13 +753,20 @@ def api_preguntar():
                 'nuevo_estado': 'INICIO'
             }), 200
 
+        # SI VIENE DE BASE44/NOVEDADES (Texto libre que devolvió el menú principal por defecto),
+        # forzamos que devuelva el texto original que envió Base44 y le generamos el audio.
+        es_novedad_o_libre = not pregunta.strip().isdigit() and pregunta.strip().lower() not in ["hola", "inicio", "menu", "reset", "0"]
+        if es_novedad_o_libre:
+            respuesta_texto = pregunta
+            es_respuesta_final = True
+
         host_url = request.host_url.rstrip('/')
         if host_url.startswith("http://"):
             host_url = host_url.replace("http://", "https://", 1)
 
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
-        # Audio únicamente para la respuesta final
+        # Audio si es respuesta final O si es un texto libre/novedad
         audio_url = None
         if es_respuesta_final and respuesta_texto:
             filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
