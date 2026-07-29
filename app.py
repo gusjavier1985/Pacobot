@@ -27,15 +27,18 @@ USER_STATES = {}
 MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
 
 1 - Mitsubishi
-2 - CAF 6000"""
+2 - CAF 6000
+3 - por qué PACO?"""
+
+TEXTO_POR_QUE_PACO = """Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)"""
 
 # --- MENÚS Y TEXTOS MITSUBISHI ---
 
 MENU_MITSUBISHI = """Seleccioná una opción para Mitsubishi:
 
-1_ENCENDIDO
-2_ESTACIONAMIENTO
-3_RESOLUCION DE AVERIAS
+1_RESOLUCION DE AVERIAS
+2_ENCENDIDO
+3_ESTACIONAMIENTO
 
 resultados con imágenes:
 4_UBICACION Y ESQUEMAS
@@ -290,7 +293,7 @@ SUBMENU_MITSU_CAT5 = """5_CONDUCCIÓN:
 19 - Modo de operación AL (Aislado Limitado)
 20 - Detección y gestión de falla del ATP de Abordo
 21 - MPI (Modulo Principal de Informaciones)
-22 - MPI (Modulo Principal de Informaciones) sus funciones"""
+22 - MPI sus funciones"""
 
 MAPA_CAT5 = {
     "1": "Manómetro doble",
@@ -314,7 +317,7 @@ MAPA_CAT5 = {
     "19": "Modo de operación AL (Aislado Limitado)",
     "20": "Detección y gestión de falla del ATP de Abordo",
     "21": "MPI (Modulo Principal de Informaciones)",
-    "22": "MPI (Modulo Principal de Informaciones) sus funciones"
+    "22": "MPI sus funciones"
 }
 
 SUBMENU_MITSU_CAT6 = """6_PUERTAS:
@@ -507,6 +510,16 @@ def load_imagenes_json():
     return []
 
 def obtener_detalles_imagen(modelo, titulo_buscado):
+    # Caso especial opción 22 de Conducción
+    if modelo == "Mitsubishi" and normalize_text(titulo_buscado) == normalize_text("MPI sus funciones"):
+        images = load_imagenes_json()
+        for img in images:
+            if img.get("archivo") == "mitsu_46_mpi_funciones.jpg":
+                titulo_limpio = img.get("titulo", "MPI sus funciones")
+                desc = img.get("descripcion", "")
+                text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+                return text_out, "mitsu_46_mpi_funciones.jpg"
+
     # Caso especial reutilización de foto CAF 6000 para opción 11 de Mitsubishi
     if modelo == "Mitsubishi" and "distribucion de puertas y lados" in normalize_text(titulo_buscado):
         images = load_imagenes_json()
@@ -585,20 +598,23 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         elif msg_clean == "2":
             USER_STATES[user_id] = "MENU_CAF"
             return MENU_CAF6000, "MENU_CAF", None, False
+        elif msg_clean == "3":
+            USER_STATES[user_id] = "INICIO"
+            return TEXTO_POR_QUE_PACO, "INICIO", None, True
         else:
             return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None, False
 
     # --- MENU MITSUBISHI ---
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
-            USER_STATES[user_id] = "INICIO"
-            return TEXTO_MITSUBISHI_ENCENDIDO, "INICIO", None, True
-        elif msg_clean == "2":
-            USER_STATES[user_id] = "INICIO"
-            return TEXTO_MITSUBISHI_ESTACIONAMIENTO, "INICIO", None, True
-        elif msg_clean == "3":
             USER_STATES[user_id] = "MITSU_AVERIAS"
             return SUBMENU_MITSUBISHI_AVERIAS, "MITSU_AVERIAS", None, False
+        elif msg_clean == "2":
+            USER_STATES[user_id] = "INICIO"
+            return TEXTO_MITSUBISHI_ENCENDIDO, "INICIO", None, True
+        elif msg_clean == "3":
+            USER_STATES[user_id] = "INICIO"
+            return TEXTO_MITSUBISHI_ESTACIONAMIENTO, "INICIO", None, True
         elif msg_clean == "4":
             USER_STATES[user_id] = "MITSU_CAT4"
             return SUBMENU_MITSU_CAT4, "MITSU_CAT4", None, False
