@@ -241,9 +241,9 @@ def buscar_instruccion_en_pdf(num_is):
             t = page.extract_text() or ""
             texto_completo += f"\n--- PAGINA {i+1} ---\n" + t
 
-        # Patrón para localizar el inicio de la instrucción solicitada (Ejemplo: IS N° 17, IS N°17, IS 17)
-        pattern = rf"(IS\s*N[°º]?\s*{num_is}\b|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*{num_is}\b)"
-        matches = list(re.finditer(pattern, texto_completo, re.IGNORECASE))
+        # Regex flexible: acepta 'IS N° 41', 'INSTRUCCION... 41' O simplemente '41 -' / '41.-' al inicio de línea
+        pattern = rf"(IS\s*N[°º]?\s*{num_is}\b|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*{num_is}\b|^\s*{num_is}\s*[-–\.\)])"
+        matches = list(re.finditer(pattern, texto_completo, re.IGNORECASE | re.MULTILINE))
 
         if not matches:
             return f"Se seleccionó la IS N° {num_is}, pero no se localizó la sección exacta dentro del PDF."
@@ -253,7 +253,7 @@ def buscar_instruccion_en_pdf(num_is):
         contenido = texto_completo[inicio:inicio + 1800].strip()
 
         # Si el fragmento incluye el inicio de otra IS posterior, recortamos hasta ese punto
-        siguiente_is = re.search(r"\n\s*(IS\s*N[°º]?\s*\d+|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*\d+)", contenido[50:], re.IGNORECASE)
+        siguiente_is = re.search(r"\n\s*(IS\s*N[°º]?\s*\d+|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*\d+|\d+\s*[-–\.\)])", contenido[50:], re.IGNORECASE)
         if siguiente_is:
             contenido = contenido[:50 + siguiente_is.start()].strip()
 
