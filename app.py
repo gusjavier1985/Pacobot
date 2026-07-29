@@ -13,6 +13,8 @@ import edge_tts
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AUDIO_DIR = os.path.join(BASE_DIR, "static_audio")
 IMAGE_DIR = os.path.join(BASE_DIR, "static_images")
+PDF_PATH = os.path.join(BASE_DIR, "Instrucciones_de_servicio.pdf")
+
 os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
@@ -28,9 +30,237 @@ MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
 
 1 - Mitsubishi
 2 - CAF 6000
-3 - por qué PACO?"""
+3 - Instrucciones de servicios al toque (resumidas)
+4 - por qué PACO?"""
 
 TEXTO_POR_QUE_PACO = """Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)"""
+
+# --- ESTRUCTURA DE CATEGORÍAS DE INSTRUCCIONES DE SERVICIO (OPCIÓN 3) ---
+
+MENU_IS_CATEGORIAS = """Seleccioná una categoría de Instrucciones de Servicio:
+
+1. Operativa y Conducción
+• IS N° 17: Marcas de Centro de Vías
+• IS N° 19: Velocidades de circulación
+• IS N° 41: Cambio de cabina en cabecera
+• IS N° 47: Cambio de cabina en cabeceras - Coches Mitsubishi
+
+2. Operativa y Comunicaciones
+• IS N° 1: Ubicación del guarda y utilización del sistema Tierra - Tren en situaciones especiales
+
+3. Operativa y Emergencias
+• IS N° 25: Retorno de un tren a la estación anterior
+• IS N° 50: Normas para conducción desde cabina de cola
+• IS N° 61: Evacuación de formaciones en estaciones cerradas por obra
+
+4. Operativa y Maniobras
+• IS N° 8: Maniobras que afecten a las vías de servicio
+• IS N° 13: Cambio de Maniobras en caso de Emergencia o por Razones Operativas
+• IS N° 14: Maniobras con cambio de cabina Conductores Especializados
+• IS N° 24: Operatoria de cambios Taller Urquiza
+• IS N° 32: Maniobras de contramano
+
+5. Operativa y Material Rodante
+• IS N° 16: Movimiento de Vehículos de gran porte
+• IS N° 21: Traslado de trenes de línea B al Ferrocarril Urquiza y viceversa
+• IS N° 35: Accionamiento de puertas con temporizador y aviso sonoro
+• IS N° 54: Uso del freno de estacionamiento en flota CAF 6000
+• IS N° 57: Protocolo para el acople de formaciones averiadas
+
+6. Operativa y Señalamiento
+• IS N° 3: Normativa para la circulación en modo Aislado Total (AT)
+• IS N° 27: Circulación en modo "Aislado Limitado" (AL) Supervisores de P.C.O.
+• IS N° 29: Utilización de comando "Tren Directo"
+• IS N° 37: Tablero de indicación de destino
+
+7. Operativa y Seguridad
+• IS N° 36: Obligaciones del Guarda durante el servicio
+• IS N° 38: Anuncios del personal del tren hacia los pasajeros a través del audio interno
+
+8. Mantenimiento, Servicio y Pruebas
+• IS N° 5: Procedimiento para realizar las pruebas de Zonas de Cambios con un Tren
+• IS N° 15: Ingreso y operación en Estaciones Terminales
+• IS N° 20: Pruebas de trenes equipados con ATP fuera del horario del servicio comercial
+• IS N° 34: Zona de ocupación especial de vía para el mantenimiento o pruebas programadas
+
+9. Material Rodante, Mantenimiento y Emergencias
+• IS N° 18: Accionamiento del grifo de la electro-válvula EMV-2
+• IS N° 23: Emergencia de Puertas (Coches Mitsubishi)
+• IS N° 44: Acciones a tomar cuando se enciende OLR en flota Mitsubishi
+• IS N° 45: Ninguna puerta abre - Trenes Mitsubishi
+• IS N° 48: Acciones a tomar cuando BP no carga - Coches Mitsubishi
+• IS N° 49: Falla de arranque - Coches Mitsubishi
+• IS N° 51: Anulación del circuito de enclavamiento de puertas
+
+10. Emergencias, Comunicaciones y Señalamiento
+• IS N° 4: Señal de "Orden a 10 Km/h"
+• IS N° 10: Comunicaciones con el PCO
+• IS N° 11: Falta de iluminación en estaciones
+• IS N° 39: Plan de emergencia para operar el servicio de trenes ante la interrupción del sistema Tierra - Tren
+• IS N° 40: Procedimiento a cumplir ante una señal semi-automática a peligro
+• IS N° 55: Pérdida de código de ATP en marcha
+
+11. Seguridad, Infraestructura y Normativa General
+• IS N° 2: Circulación de tren escuela en líneas con ATP
+• IS N° 6: Revisión de elementos del tren para la puesta en servicio (check list)
+• IS N° 7: Normativas para viajar en cabina
+• IS N° 9: Ingreso de personal de Emova al túnel en horarios de servicio de trenes
+• IS N° 12: Intento de suicidio o persona caída en las vías
+• IS N° 22: Utilización de alimentadores "Puente T" entre Lacroze y Alem
+• IS N° 26: Sistema Tierra-Tren
+• IS N° 28: Procedimiento para el traslado de hinchadas y/o grupos numerosos
+• IS N° 30: Sistema de Señales ALSTOM Función Liberación del Seguido de la Ocupación
+• IS N° 31: Enclavamiento de puertas coches Mitsubishi
+• IS N° 33: Comunicaciones Especiales
+• IS N° 42: Detector de Tensión en el Tercer Riel
+• IS N° 43: Comportamiento durante el viaje al Personal de Guardas
+• IS N° 46: Acciones a tomar ante un principio de incendio
+• IS N° 52: Procedimiento ante la evacuación de un tren en túnel
+• IS N° 53: Protocolo ante presencia de humo en estación o túnel
+• IS N° 56: Notificación de objetos extraños o anomalías en vía
+• IS N° 58: Normas de seguridad para trabajos en vía con tensión"""
+
+SUBMENUS_IS_POR_CATEGORIA = {
+    "1": """1. Operativa y Conducción - Seleccioná una opción:
+
+1 - IS N° 17: Marcas de Centro de Vías
+2 - IS N° 19: Velocidades de circulación
+3 - IS N° 41: Cambio de cabina en cabecera
+4 - IS N° 47: Cambio de cabina en cabeceras - Coches Mitsubishi""",
+
+    "2": """2. Operativa y Comunicaciones - Seleccioná una opción:
+
+1 - IS N° 1: Ubicación del guarda y utilización del sistema Tierra - Tren en situaciones especiales""",
+
+    "3": """3. Operativa y Emergencias - Seleccioná una opción:
+
+1 - IS N° 25: Retorno de un tren a la estación anterior
+2 - IS N° 50: Normas para conducción desde cabina de cola
+3 - IS N° 61: Evacuación de formaciones en estaciones cerradas por obra""",
+
+    "4": """4. Operativa y Maniobras - Seleccioná una opción:
+
+1 - IS N° 8: Maniobras que afecten a las vías de servicio
+2 - IS N° 13: Cambio de Maniobras en caso de Emergencia o por Razones Operativas
+3 - IS N° 14: Maniobras con cambio de cabina Conductores Especializados
+4 - IS N° 24: Operatoria de cambios Taller Urquiza
+5 - IS N° 32: Maniobras de contramano""",
+
+    "5": """5. Operativa y Material Rodante - Seleccioná una opción:
+
+1 - IS N° 16: Movimiento de Vehículos de gran porte
+2 - IS N° 21: Traslado de trenes de línea B al Ferrocarril Urquiza y viceversa
+3 - IS N° 35: Accionamiento de puertas con temporizador y aviso sonoro
+4 - IS N° 54: Uso del freno de estacionamiento en flota CAF 6000
+5 - IS N° 57: Protocolo para el acople de formaciones averiadas""",
+
+    "6": """6. Operativa y Señalamiento - Seleccioná una opción:
+
+1 - IS N° 3: Normativa para la circulación en modo Aislado Total (AT)
+2 - IS N° 27: Circulación en modo "Aislado Limitado" (AL) Supervisores de P.C.O.
+3 - IS N° 29: Utilización de comando "Tren Directo"
+4 - IS N° 37: Tablero de indicación de destino""",
+
+    "7": """7. Operativa y Seguridad - Seleccioná una opción:
+
+1 - IS N° 36: Obligaciones del Guarda durante el servicio
+2 - IS N° 38: Anuncios del personal del tren hacia los pasajeros a través del audio interno""",
+
+    "8": """8. Mantenimiento, Servicio y Pruebas - Seleccioná una opción:
+
+1 - IS N° 5: Procedimiento para realizar las pruebas de Zonas de Cambios con un Tren
+2 - IS N° 15: Ingreso y operación en Estaciones Terminales
+3 - IS N° 20: Pruebas de trenes equipados con ATP fuera del horario del servicio comercial
+4 - IS N° 34: Zona de ocupación especial de vía para el mantenimiento o pruebas programadas""",
+
+    "9": """9. Material Rodante, Mantenimiento y Emergencias - Seleccioná una opción:
+
+1 - IS N° 18: Accionamiento del grifo de la electro-válvula EMV-2
+2 - IS N° 23: Emergencia de Puertas (Coches Mitsubishi)
+3 - IS N° 44: Acciones a tomar cuando se enciende OLR en flota Mitsubishi
+4 - IS N° 45: Ninguna puerta abre - Trenes Mitsubishi
+5 - IS N° 48: Acciones a tomar cuando BP no carga - Coches Mitsubishi
+6 - IS N° 49: Falla de arranque - Coches Mitsubishi
+7 - IS N° 51: Anulación del circuito de enclavamiento de puertas""",
+
+    "10": """10. Emergencias, Comunicaciones y Señalamiento - Seleccioná una opción:
+
+1 - IS N° 4: Señal de "Orden a 10 Km/h"
+2 - IS N° 10: Comunicaciones con el PCO
+3 - IS N° 11: Falta de iluminación en estaciones
+4 - IS N° 39: Plan de emergencia para operar el servicio de trenes ante la interrupción del sistema Tierra - Tren
+5 - IS N° 40: Procedimiento a cumplir ante una señal semi-automática a peligro
+6 - IS N° 55: Pérdida de código de ATP en marcha""",
+
+    "11": """11. Seguridad, Infraestructura y Normativa General - Seleccioná una opción:
+
+1 - IS N° 2: Circulación de tren escuela en líneas con ATP
+2 - IS N° 6: Revisión de elementos del tren para la puesta en servicio (check list)
+3 - IS N° 7: Normativas para viajar en cabina
+4 - IS N° 9: Ingreso de personal de Emova al túnel en horarios de servicio de trenes
+5 - IS N° 12: Intento de suicidio o persona caída en las vías
+6 - IS N° 22: Utilización de alimentadores "Puente T" entre Lacroze y Alem
+7 - IS N° 26: Sistema Tierra-Tren
+8 - IS N° 28: Procedimiento para el traslado de hinchadas y/o grupos numerosos
+9 - IS N° 30: Sistema de Señales ALSTOM Función Liberación del Seguido de la Ocupación
+10 - IS N° 31: Enclavamiento de puertas coches Mitsubishi
+11 - IS N° 33: Comunicaciones Especiales
+12 - IS N° 42: Detector de Tensión en el Tercer Riel
+13 - IS N° 43: Comportamiento durante el viaje al Personal de Guardas
+14 - IS N° 46: Acciones a tomar ante un principio de incendio
+15 - IS N° 52: Procedimiento ante la evacuación de un tren en túnel
+16 - IS N° 53: Protocolo ante presencia de humo en estación o túnel
+17 - IS N° 56: Notificación de objetos extraños o anomalías en vía
+18 - IS N° 58: Normas de seguridad para trabajos en vía con tensión"""
+}
+
+MAPEO_OPCIONES_IS = {
+    "1": {"1": "17", "2": "19", "3": "41", "4": "47"},
+    "2": {"1": "1"},
+    "3": {"1": "25", "2": "50", "3": "61"},
+    "4": {"1": "8", "2": "13", "3": "14", "4": "24", "5": "32"},
+    "5": {"1": "16", "2": "21", "3": "35", "4": "54", "5": "57"},
+    "6": {"1": "3", "2": "27", "3": "29", "4": "37"},
+    "7": {"1": "36", "2": "38"},
+    "8": {"1": "5", "2": "15", "3": "20", "4": "34"},
+    "9": {"1": "18", "2": "23", "3": "44", "4": "45", "5": "48", "6": "49", "7": "51"},
+    "10": {"1": "4", "2": "10", "3": "11", "4": "39", "5": "40", "6": "55"},
+    "11": {"1": "2", "2": "6", "3": "7", "4": "9", "5": "12", "6": "22", "7": "26", "8": "28", "9": "30", "10": "31", "11": "33", "12": "42", "13": "43", "14": "46", "15": "52", "16": "53", "17": "56", "18": "58"}
+}
+
+# --- LECTURA Y BÚSQUEDA EN EL PDF DE INSTRUCCIONES DE SERVICIO ---
+
+def buscar_instruccion_en_pdf(num_is):
+    if not os.path.exists(PDF_PATH):
+        return f"Instrucción de Servicio N° {num_is}\n\n(No se encontró el archivo Instrucciones_de_servicio.pdf en la raíz del proyecto)."
+
+    try:
+        reader = PdfReader(PDF_PATH)
+        texto_completo = ""
+        for i, page in enumerate(reader.pages):
+            t = page.extract_text() or ""
+            texto_completo += f"\n--- PAGINA {i+1} ---\n" + t
+
+        # Patrón para localizar el inicio de la instrucción solicitada (Ejemplo: IS N° 17, IS N°17, IS 17)
+        pattern = rf"(IS\s*N[°º]?\s*{num_is}\b|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*{num_is}\b)"
+        matches = list(re.finditer(pattern, texto_completo, re.IGNORECASE))
+
+        if not matches:
+            return f"Se seleccionó la IS N° {num_is}, pero no se localizó la sección exacta dentro del PDF."
+
+        inicio = matches[0].start()
+        # Cortamos un fragmento representativo (~1800 caracteres) desde el inicio encontrado
+        contenido = texto_completo[inicio:inicio + 1800].strip()
+
+        # Si el fragmento incluye el inicio de otra IS posterior, recortamos hasta ese punto
+        siguiente_is = re.search(r"\n\s*(IS\s*N[°º]?\s*\d+|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*\d+)", contenido[50:], re.IGNORECASE)
+        if siguiente_is:
+            contenido = contenido[:50 + siguiente_is.start()].strip()
+
+        return contenido
+
+    except Exception as e:
+        return f"Error al leer el archivo PDF: {str(e)}"
 
 # --- MENÚS Y TEXTOS MITSUBISHI ---
 
@@ -510,7 +740,6 @@ def load_imagenes_json():
     return []
 
 def obtener_detalles_imagen(modelo, titulo_buscado):
-    # Caso especial opción 22 de Conducción
     if modelo == "Mitsubishi" and normalize_text(titulo_buscado) == normalize_text("MPI sus funciones"):
         images = load_imagenes_json()
         for img in images:
@@ -520,7 +749,6 @@ def obtener_detalles_imagen(modelo, titulo_buscado):
                 text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
                 return text_out, "mitsu_46_mpi_funciones.jpg"
 
-    # Caso especial reutilización de foto CAF 6000 para opción 11 de Mitsubishi
     if modelo == "Mitsubishi" and "distribucion de puertas y lados" in normalize_text(titulo_buscado):
         images = load_imagenes_json()
         for img in images:
@@ -590,7 +818,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None, False
 
-    # --- MENU PRINCIPAL ---
+    # --- MENÚ PRINCIPAL ---
     if estado_actual == "MENU_PRINCIPAL":
         if msg_clean == "1":
             USER_STATES[user_id] = "MENU_MITSUBISHI"
@@ -599,12 +827,35 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
             USER_STATES[user_id] = "MENU_CAF"
             return MENU_CAF6000, "MENU_CAF", None, False
         elif msg_clean == "3":
+            USER_STATES[user_id] = "IS_CATEGORIAS"
+            return MENU_IS_CATEGORIAS, "IS_CATEGORIAS", None, False
+        elif msg_clean == "4":
             USER_STATES[user_id] = "INICIO"
             return TEXTO_POR_QUE_PACO, "INICIO", None, True
         else:
             return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None, False
 
-    # --- MENU MITSUBISHI ---
+    # --- NAVEGACIÓN OPCIÓN 3: INSTRUCCIONES DE SERVICIO ---
+    if estado_actual == "IS_CATEGORIAS":
+        if msg_clean in SUBMENUS_IS_POR_CATEGORIA:
+            USER_STATES[user_id] = f"IS_SUBCAT_{msg_clean}"
+            return SUBMENUS_IS_POR_CATEGORIA[msg_clean], f"IS_SUBCAT_{msg_clean}", None, False
+        else:
+            return f"Opción no válida.\n\n{MENU_IS_CATEGORIAS}", "IS_CATEGORIAS", None, False
+
+    if estado_actual.startswith("IS_SUBCAT_"):
+        cat_num = estado_actual.replace("IS_SUBCAT_", "")
+        mapeo_subcat = MAPEO_OPCIONES_IS.get(cat_num, {})
+        if msg_clean in mapeo_subcat:
+            num_is = mapeo_subcat[msg_clean]
+            contenido_is = buscar_instruccion_en_pdf(num_is)
+            USER_STATES[user_id] = "INICIO"
+            return contenido_is, "INICIO", None, True
+        else:
+            submenu_texto = SUBMENUS_IS_POR_CATEGORIA.get(cat_num, MENU_IS_CATEGORIAS)
+            return f"Opción no válida.\n\n{submenu_texto}", estado_actual, None, False
+
+    # --- MENÚ MITSUBISHI ---
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
             USER_STATES[user_id] = "MITSU_AVERIAS"
@@ -639,7 +890,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSUBISHI_AVERIAS}", "MITSU_AVERIAS", None, False
 
-    # --- MITSUBISHI: CAT 4 (UBICACIÓN Y ESQUEMAS) ---
+    # --- MITSUBISHI: CATEGORÍAS CON IMÁGENES ---
     if estado_actual == "MITSU_CAT4":
         if msg_clean in MAPA_CAT4:
             titulo = MAPA_CAT4[msg_clean]
@@ -649,7 +900,6 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT4}", "MITSU_CAT4", None, False
 
-    # --- MITSUBISHI: CAT 5 (CONDUCCIÓN) ---
     if estado_actual == "MITSU_CAT5":
         if msg_clean in MAPA_CAT5:
             titulo = MAPA_CAT5[msg_clean]
@@ -659,7 +909,6 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT5}", "MITSU_CAT5", None, False
 
-    # --- MITSUBISHI: CAT 6 (PUERTAS) ---
     if estado_actual == "MITSU_CAT6":
         if msg_clean in MAPA_CAT6:
             titulo = MAPA_CAT6[msg_clean]
@@ -669,7 +918,6 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT6}", "MITSU_CAT6", None, False
 
-    # --- MITSUBISHI: CAT 7 (EXTERIOR, GRIFOS Y RELAY) ---
     if estado_actual == "MITSU_CAT7":
         if msg_clean in MAPA_CAT7:
             titulo = MAPA_CAT7[msg_clean]
@@ -753,12 +1001,9 @@ def api_preguntar():
                 'nuevo_estado': 'INICIO'
             }), 200
 
-        # SI VIENE DE BASE44/NOVEDADES (Texto libre que devolvió el menú principal por defecto),
-        # forzamos que devuelva el texto original que envió Base44 y le generamos el audio.
         es_novedad_o_libre = not pregunta.strip().isdigit() and pregunta.strip().lower() not in ["hola", "inicio", "menu", "reset", "0"]
-        if es_novedad_o_libre:
+        if es_novedad_o_libre and es_respuesta_final:
             respuesta_texto = pregunta
-            es_respuesta_final = True
 
         host_url = request.host_url.rstrip('/')
         if host_url.startswith("http://"):
@@ -766,7 +1011,6 @@ def api_preguntar():
 
         imagen_url = f"{host_url}/images/{archivo_imagen}" if archivo_imagen else None
 
-        # Audio si es respuesta final O si es un texto libre/novedad
         audio_url = None
         if es_respuesta_final and respuesta_texto:
             filename_audio = f"audio_{uuid.uuid4().hex[:8]}.mp3"
