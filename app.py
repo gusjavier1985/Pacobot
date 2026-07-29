@@ -13,7 +13,6 @@ import edge_tts
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AUDIO_DIR = os.path.join(BASE_DIR, "static_audio")
 IMAGE_DIR = os.path.join(BASE_DIR, "static_images")
-# Nombre del PDF en tu repositorio
 PDF_PATH = os.path.join(BASE_DIR, "instrucciones_de_servicio_linea_b.pdf")
 
 os.makedirs(AUDIO_DIR, exist_ok=True)
@@ -22,7 +21,6 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Memoria de estado para navegación por chat
 USER_STATES = {}
 
 # --- MENÚS ESTÁTICOS GENERALES ---
@@ -36,55 +34,55 @@ MENU_INICIAL = """Hola, ¿cómo estás? La consulta es por:
 
 TEXTO_POR_QUE_PACO = """Me llamo PACO por un juego de palabras y en reconocimiento a nuestros instructores Paleo (PA) y Greco (CO)"""
 
-# --- ESTRUCTURA DE CATEGORÍAS DE INSTRUCCIONES DE SERVICIO (OPCIÓN 3) ---
+# --- ESTRUCTURA DE CATEGORÍAS (TÍTULOS EN MAYÚSCULAS) ---
 
 MENU_IS_CATEGORIAS = """Seleccioná una categoría de Instrucciones de Servicio:
 
-1. Operativa y Conducción
+1. OPERATIVA Y CONDUCCIÓN
 • IS N° 17: Marcas de Centro de Vías
 • IS N° 19: Velocidades de circulación
 • IS N° 41: Cambio de cabina en cabecera
 • IS N° 47: Cambio de cabina en cabeceras - Coches Mitsubishi
 
-2. Operativa y Comunicaciones
+2. OPERATIVA Y COMUNICACIONES
 • IS N° 1: Ubicación del guarda y utilización del sistema Tierra - Tren en situaciones especiales
 
-3. Operativa y Emergencias
+3. OPERATIVA Y EMERGENCIAS
 • IS N° 25: Retorno de un tren a la estación anterior
 • IS N° 50: Normas para conducción desde cabina de cola
 • IS N° 61: Evacuación de formaciones en estaciones cerradas por obra
 
-4. Operativa y Maniobras
+4. OPERATIVA Y MANIOBRAS
 • IS N° 8: Maniobras que afecten a las vías de servicio
 • IS N° 13: Cambio de Maniobras en caso de Emergencia o por Razones Operativas
 • IS N° 14: Maniobras con cambio de cabina Conductores Especializados
 • IS N° 24: Operatoria de cambios Taller Urquiza
 • IS N° 32: Maniobras de contramano
 
-5. Operativa y Material Rodante
+5. OPERATIVA Y MATERIAL RODANTE
 • IS N° 16: Movimiento de Vehículos de gran porte
 • IS N° 21: Traslado de trenes de línea B al Ferrocarril Urquiza y viceversa
 • IS N° 35: Accionamiento de puertas con temporizador y aviso sonoro
 • IS N° 54: Uso del freno de estacionamiento en flota CAF 6000
 • IS N° 57: Protocolo para el acople de formaciones averiadas
 
-6. Operativa y Señalamiento
+6. OPERATIVA Y SEÑALAMIENTO
 • IS N° 3: Normativa para la circulación en modo Aislado Total (AT)
 • IS N° 27: Circulación en modo "Aislado Limitado" (AL) Supervisores de P.C.O.
 • IS N° 29: Utilización de comando "Tren Directo"
 • IS N° 37: Tablero de indicación de destino
 
-7. Operativa y Seguridad
+7. OPERATIVA Y SEGURIDAD
 • IS N° 36: Obligaciones del Guarda durante el servicio
 • IS N° 38: Anuncios del personal del tren hacia los pasajeros a través del audio interno
 
-8. Mantenimiento, Servicio y Pruebas
+8. MANTENIMIENTO, SERVICIO Y PRUEBAS
 • IS N° 5: Procedimiento para realizar las pruebas de Zonas de Cambios con un Tren
 • IS N° 15: Ingreso y operación en Estaciones Terminales
 • IS N° 20: Pruebas de trenes equipados con ATP fuera del horario del servicio comercial
 • IS N° 34: Zona de ocupación especial de vía para el mantenimiento o pruebas programadas
 
-9. Material Rodante, Mantenimiento y Emergencias
+9. MATERIAL RODANTE, MANTENIMIENTO Y EMERGENCIAS
 • IS N° 18: Accionamiento del grifo de la electro-válvula EMV-2
 • IS N° 23: Emergencia de Puertas (Coches Mitsubishi)
 • IS N° 44: Acciones a tomar cuando se enciende OLR en flota Mitsubishi
@@ -93,7 +91,7 @@ MENU_IS_CATEGORIAS = """Seleccioná una categoría de Instrucciones de Servicio:
 • IS N° 49: Falla de arranque - Coches Mitsubishi
 • IS N° 51: Anulación del circuito de enclavamiento de puertas
 
-10. Emergencias, Comunicaciones y Señalamiento
+10. EMERGENCIAS, COMUNICACIONES Y SEÑALAMIENTO
 • IS N° 4: Señal de "Orden a 10 Km/h"
 • IS N° 10: Comunicaciones con el PCO
 • IS N° 11: Falta de iluminación en estaciones
@@ -101,7 +99,7 @@ MENU_IS_CATEGORIAS = """Seleccioná una categoría de Instrucciones de Servicio:
 • IS N° 40: Procedimiento a cumplir ante una señal semi-automática a peligro
 • IS N° 55: Pérdida de código de ATP en marcha
 
-11. Seguridad, Infraestructura y Normativa General
+11. SEGURIDAD, INFRAESTRUCTURA Y NORMATIVA GENERAL
 • IS N° 2: Circulación de tren escuela en líneas con ATP
 • IS N° 6: Revisión de elementos del tren para la puesta en servicio (check list)
 • IS N° 7: Normativas para viajar en cabina
@@ -122,24 +120,24 @@ MENU_IS_CATEGORIAS = """Seleccioná una categoría de Instrucciones de Servicio:
 • IS N° 58: Normas de seguridad para trabajos en vía con tensión"""
 
 SUBMENUS_IS_POR_CATEGORIA = {
-    "1": """1. Operativa y Conducción - Seleccioná una opción:
+    "1": """1. OPERATIVA Y CONDUCCIÓN - Seleccioná una opción:
 
 1 - IS N° 17: Marcas de Centro de Vías
 2 - IS N° 19: Velocidades de circulación
 3 - IS N° 41: Cambio de cabina en cabecera
 4 - IS N° 47: Cambio de cabina en cabeceras - Coches Mitsubishi""",
 
-    "2": """2. Operativa y Comunicaciones - Seleccioná una opción:
+    "2": """2. OPERATIVA Y COMUNICACIONES - Seleccioná una opción:
 
 1 - IS N° 1: Ubicación del guarda y utilización del sistema Tierra - Tren en situaciones especiales""",
 
-    "3": """3. Operativa y Emergencias - Seleccioná una opción:
+    "3": """3. OPERATIVA Y EMERGENCIAS - Seleccioná una opción:
 
 1 - IS N° 25: Retorno de un tren a la estación anterior
 2 - IS N° 50: Normas para conducción desde cabina de cola
 3 - IS N° 61: Evacuación de formaciones en estaciones cerradas por obra""",
 
-    "4": """4. Operativa y Maniobras - Seleccioná una opción:
+    "4": """4. OPERATIVA Y MANIOBRAS - Seleccioná una opción:
 
 1 - IS N° 8: Maniobras que afecten a las vías de servicio
 2 - IS N° 13: Cambio de Maniobras en caso de Emergencia o por Razones Operativas
@@ -147,7 +145,7 @@ SUBMENUS_IS_POR_CATEGORIA = {
 4 - IS N° 24: Operatoria de cambios Taller Urquiza
 5 - IS N° 32: Maniobras de contramano""",
 
-    "5": """5. Operativa y Material Rodante - Seleccioná una opción:
+    "5": """5. OPERATIVA Y MATERIAL RODANTE - Seleccioná una opción:
 
 1 - IS N° 16: Movimiento de Vehículos de gran porte
 2 - IS N° 21: Traslado de trenes de línea B al Ferrocarril Urquiza y viceversa
@@ -155,26 +153,26 @@ SUBMENUS_IS_POR_CATEGORIA = {
 4 - IS N° 54: Uso del freno de estacionamiento en flota CAF 6000
 5 - IS N° 57: Protocolo para el acople de formaciones averiadas""",
 
-    "6": """6. Operativa y Señalamiento - Seleccioná una opción:
+    "6": """6. OPERATIVA Y SEÑALAMIENTO - Seleccioná una opción:
 
 1 - IS N° 3: Normativa para la circulación en modo Aislado Total (AT)
 2 - IS N° 27: Circulación en modo "Aislado Limitado" (AL) Supervisores de P.C.O.
 3 - IS N° 29: Utilización de comando "Tren Directo"
 4 - IS N° 37: Tablero de indicación de destino""",
 
-    "7": """7. Operativa y Seguridad - Seleccioná una opción:
+    "7": """7. OPERATIVA Y SEGURIDAD - Seleccioná una opción:
 
 1 - IS N° 36: Obligaciones del Guarda durante el servicio
 2 - IS N° 38: Anuncios del personal del tren hacia los pasajeros a través del audio interno""",
 
-    "8": """8. Mantenimiento, Servicio y Pruebas - Seleccioná una opción:
+    "8": """8. MANTENIMIENTO, SERVICIO Y PRUEBAS - Seleccioná una opción:
 
 1 - IS N° 5: Procedimiento para realizar las pruebas de Zonas de Cambios con un Tren
 2 - IS N° 15: Ingreso y operación en Estaciones Terminales
 3 - IS N° 20: Pruebas de trenes equipados con ATP fuera del horario del servicio comercial
 4 - IS N° 34: Zona de ocupación especial de vía para el mantenimiento o pruebas programadas""",
 
-    "9": """9. Material Rodante, Mantenimiento y Emergencias - Seleccioná una opción:
+    "9": """9. MATERIAL RODANTE, MANTENIMIENTO Y EMERGENCIAS - Seleccioná una opción:
 
 1 - IS N° 18: Accionamiento del grifo de la electro-válvula EMV-2
 2 - IS N° 23: Emergencia de Puertas (Coches Mitsubishi)
@@ -184,7 +182,7 @@ SUBMENUS_IS_POR_CATEGORIA = {
 6 - IS N° 49: Falla de arranque - Coches Mitsubishi
 7 - IS N° 51: Anulación del circuito de enclavamiento de puertas""",
 
-    "10": """10. Emergencias, Comunicaciones y Señalamiento - Seleccioná una opción:
+    "10": """10. EMERGENCIAS, COMUNICACIONES Y SEÑALAMIENTO - Seleccioná una opción:
 
 1 - IS N° 4: Señal de "Orden a 10 Km/h"
 2 - IS N° 10: Comunicaciones con el PCO
@@ -193,7 +191,7 @@ SUBMENUS_IS_POR_CATEGORIA = {
 5 - IS N° 40: Procedimiento a cumplir ante una señal semi-automática a peligro
 6 - IS N° 55: Pérdida de código de ATP en marcha""",
 
-    "11": """11. Seguridad, Infraestructura y Normativa General - Seleccioná una opción:
+    "11": """11. SEGURIDAD, INFRAESTRUCTURA Y NORMATIVA GENERAL - Seleccioná una opción:
 
 1 - IS N° 2: Circulación de tren escuela en líneas con ATP
 2 - IS N° 6: Revisión de elementos del tren para la puesta en servicio (check list)
@@ -229,50 +227,48 @@ MAPEO_OPCIONES_IS = {
     "11": {"1": "2", "2": "6", "3": "7", "4": "9", "5": "12", "6": "22", "7": "26", "8": "28", "9": "30", "10": "31", "11": "33", "12": "42", "13": "43", "14": "46", "15": "52", "16": "53", "17": "56", "18": "58"}
 }
 
-# --- LECTURA Y BÚSQUEDA DINÁMICA EN EL PDF ---
+# --- BÚSQUEDA DELIMITADA EN EL PDF ---
 
 def buscar_instruccion_en_pdf(num_is):
     if not os.path.exists(PDF_PATH):
-        return f"Instrucción de Servicio N° {num_is}\n\n(No se encontró el archivo {os.path.basename(PDF_PATH)} en el repositorio)."
+        return f"Instrucción de Servicio N° {num_is}\n\n(No se encontró el archivo PDF en el servidor)."
 
     try:
         reader = PdfReader(PDF_PATH)
         texto_completo = ""
-        for i, page in enumerate(reader.pages):
+        for page in reader.pages:
             t = page.extract_text() or ""
-            texto_completo += f"\n {t}"
+            texto_completo += f"\n{t}"
 
-        # Patrón principal para ubicar la IS seleccionada
-        pattern = rf"(IS\s*N[°º]?\s*{num_is}\b|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*{num_is}\b|^\s*{num_is}\s*[-–\.\)])"
-        matches = list(re.finditer(pattern, texto_completo, re.IGNORECASE | re.MULTILINE))
+        num_str = str(num_is).zfill(2)
+        
+        # Patrón para localizar el inicio exacto de la IS buscada
+        pattern_inicio = rf"(IS[-–\s]*{num_str}\b|IS[-–\s]*{num_is}\b)"
+        match_inicio = re.search(pattern_inicio, texto_completo, re.IGNORECASE)
 
-        if not matches:
-            return f"Se seleccionó la IS N° {num_is}, pero no se localizó la sección dentro del archivo PDF."
+        if not match_inicio:
+            return f"Se seleccionó la IS N° {num_is}, pero no se localizó dentro del documento."
 
-        inicio = matches[0].start()
+        inicio = match_inicio.start()
 
-        # Buscamos dónde arranca la siguiente IS para recortar exactamente el bloque completo
-        siguiente_match = re.search(
-            r"\n\s*(IS\s*N[°º]?\s*\d+|INSTRUCCION\s*DE\s*SERVICIO\s*N[°º]?\s*\d+|N[°º]\s*\d+)", 
-            texto_completo[inicio + 30:], 
-            re.IGNORECASE
-        )
+        # Busca dónde empieza la SIGUIENTE IS o la cabecera de la página siguiente
+        pattern_fin = r"(\n\s*IS[-–\s]*\d+|\n\s*Página\s+\d+\s+de\s+\d+|\n\s*\d+\.\s+[A-ZÁÉÍÓÚ\s]{4,})"
+        match_fin = re.search(pattern_fin, texto_completo[inicio + 20:], re.IGNORECASE)
 
-        if siguiente_match:
-            fin = inicio + 30 + siguiente_match.start()
+        if match_fin:
+            fin = inicio + 20 + match_fin.start()
             contenido = texto_completo[inicio:fin].strip()
         else:
-            # Si era la última IS del archivo, toma desde el inicio hasta el final
-            contenido = texto_completo[inicio:].strip()
+            contenido = texto_completo[inicio:inicio + 1500].strip()
 
-        # Limpiamos saltos de línea excesivos acumulados por la extracción del PDF
+        # Limpiar saltos de línea continuos sobrantes
         contenido_limpio = re.sub(r'\n{3,}', '\n\n', contenido)
         return contenido_limpio
 
     except Exception as e:
-        return f"Error al procesar la búsqueda en el PDF: {str(e)}"
+        return f"Error al leer el PDF: {str(e)}"
 
-# --- MENÚS Y TEXTOS MITSUBISHI ---
+# --- MENÚS MITSUBISHI Y CAF 6000 ---
 
 MENU_MITSUBISHI = """Seleccioná una opción para Mitsubishi:
 
@@ -480,8 +476,6 @@ Una puerta:
 -Si el coche afectado es desde el cual se está conduciendo se puede verificar una reducción del frenado por lo cual se deben extremar las precauciones del caso"""
 }
 
-# --- SUBMENÚS CON IMÁGENES MITSUBISHI ---
-
 SUBMENU_MITSU_CAT4 = """4_UBICACION Y ESQUEMAS:
 
 1 - Extinguidor de incendios
@@ -597,8 +591,6 @@ MAPA_CAT7 = {
     "3": "Dispositivo de accionamiento A1",
     "4": "Caja controladora del MG"
 }
-
-# --- MENÚ Y SUBMENÚ CAF 6000 ---
 
 MENU_CAF6000 = """Seleccioná una opción para CAF 6000:
 
@@ -729,7 +721,7 @@ MAPA_TITULOS_CAF = {
     "18": "DISTRIBUCIÓN DE PUERTAS, LADOS Y COCHES"
 }
 
-# --- FUNCIONES AUXILIARES ---
+# --- FUNCIONES AUXILIARES DE IMÁGENES ---
 
 def normalize_text(text):
     if not text:
@@ -754,18 +746,9 @@ def obtener_detalles_imagen(modelo, titulo_buscado):
         images = load_imagenes_json()
         for img in images:
             if img.get("archivo") == "mitsu_46_mpi_funciones.jpg":
-                titulo_limpio = img.get("titulo", "MPI sus funciones")
                 desc = img.get("descripcion", "")
-                text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+                text_out = f"MPI sus funciones\n\n{desc}".strip() if desc else "MPI sus funciones"
                 return text_out, "mitsu_46_mpi_funciones.jpg"
-
-    if modelo == "Mitsubishi" and "distribucion de puertas y lados" in normalize_text(titulo_buscado):
-        images = load_imagenes_json()
-        for img in images:
-            if img.get("modelo") == "CAF 6000" and "distribucion de puertas y lados" in normalize_text(img.get("titulo", "")):
-                desc = img.get("descripcion", "")
-                text_out = f"DISTRIBUCIÓN DE PUERTAS Y LADOS\n\n{desc}".strip() if desc else "DISTRIBUCIÓN DE PUERTAS Y LADOS"
-                return text_out, img.get("archivo")
 
     images = load_imagenes_json()
     t_norm = normalize_text(titulo_buscado)
@@ -790,18 +773,16 @@ def obtener_item_caf_por_titulo_o_indice(num_opcion):
     for img in caf_items:
         t_json = normalize_text(img.get("titulo", ""))
         if titulo_norm and t_json == titulo_norm:
-            titulo_limpio = img.get("titulo", titulo_buscado)
             desc = img.get("descripcion", "")
-            text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+            text_out = f"{img.get('titulo', titulo_buscado)}\n\n{desc}".strip() if desc else img.get('titulo', titulo_buscado)
             return text_out, img.get("archivo")
 
     try:
         idx = int(num_opcion) - 1
         if 0 <= idx < len(caf_items):
             item = caf_items[idx]
-            titulo_limpio = item.get("titulo", titulo_buscado)
             desc = item.get("descripcion", "")
-            text_out = f"{titulo_limpio}\n\n{desc}".strip() if desc else titulo_limpio
+            text_out = f"{item.get('titulo', titulo_buscado)}\n\n{desc}".strip() if desc else item.get('titulo', titulo_buscado)
             return text_out, item.get("archivo")
     except ValueError:
         pass
@@ -828,7 +809,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         USER_STATES[user_id] = "MENU_PRINCIPAL"
         return MENU_INICIAL, "MENU_PRINCIPAL", None, False
 
-    # --- MENÚ PRINCIPAL ---
+    # MENÚ PRINCIPAL
     if estado_actual == "MENU_PRINCIPAL":
         if msg_clean == "1":
             USER_STATES[user_id] = "MENU_MITSUBISHI"
@@ -845,7 +826,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{MENU_INICIAL}", "MENU_PRINCIPAL", None, False
 
-    # --- NAVEGACIÓN OPCIÓN 3: INSTRUCCIONES DE SERVICIO ---
+    # CATEGORÍAS IS (OPCIÓN 3)
     if estado_actual == "IS_CATEGORIAS":
         if msg_clean in SUBMENUS_IS_POR_CATEGORIA:
             USER_STATES[user_id] = f"IS_SUBCAT_{msg_clean}"
@@ -865,7 +846,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
             submenu_texto = SUBMENUS_IS_POR_CATEGORIA.get(cat_num, MENU_IS_CATEGORIAS)
             return f"Opción no válida.\n\n{submenu_texto}", estado_actual, None, False
 
-    # --- MENÚ MITSUBISHI ---
+    # MITSUBISHI
     if estado_actual == "MENU_MITSUBISHI":
         if msg_clean == "1":
             USER_STATES[user_id] = "MITSU_AVERIAS"
@@ -891,20 +872,16 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{MENU_MITSUBISHI}", "MENU_MITSUBISHI", None, False
 
-    # --- MITSUBISHI: AVERÍAS ---
     if estado_actual == "MITSU_AVERIAS":
         if msg_clean in TEXTOS_MITSUBISHI_AVERIAS:
-            res = TEXTOS_MITSUBISHI_AVERIAS[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return res, "INICIO", None, True
+            return TEXTOS_MITSUBISHI_AVERIAS[msg_clean], "INICIO", None, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSUBISHI_AVERIAS}", "MITSU_AVERIAS", None, False
 
-    # --- MITSUBISHI: CATEGORÍAS CON IMÁGENES ---
     if estado_actual == "MITSU_CAT4":
         if msg_clean in MAPA_CAT4:
-            titulo = MAPA_CAT4[msg_clean]
-            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", MAPA_CAT4[msg_clean])
             USER_STATES[user_id] = "INICIO"
             return texto_final, "INICIO", archivo, True
         else:
@@ -912,8 +889,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
 
     if estado_actual == "MITSU_CAT5":
         if msg_clean in MAPA_CAT5:
-            titulo = MAPA_CAT5[msg_clean]
-            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", MAPA_CAT5[msg_clean])
             USER_STATES[user_id] = "INICIO"
             return texto_final, "INICIO", archivo, True
         else:
@@ -921,8 +897,7 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
 
     if estado_actual == "MITSU_CAT6":
         if msg_clean in MAPA_CAT6:
-            titulo = MAPA_CAT6[msg_clean]
-            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", MAPA_CAT6[msg_clean])
             USER_STATES[user_id] = "INICIO"
             return texto_final, "INICIO", archivo, True
         else:
@@ -930,22 +905,20 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
 
     if estado_actual == "MITSU_CAT7":
         if msg_clean in MAPA_CAT7:
-            titulo = MAPA_CAT7[msg_clean]
-            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", titulo)
+            texto_final, archivo = obtener_detalles_imagen("Mitsubishi", MAPA_CAT7[msg_clean])
             USER_STATES[user_id] = "INICIO"
             return texto_final, "INICIO", archivo, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_MITSU_CAT7}", "MITSU_CAT7", None, False
 
-    # --- MENÚ CAF 6000 ---
+    # CAF 6000
     if estado_actual == "MENU_CAF":
         if msg_clean == "2":
             USER_STATES[user_id] = "CAF_LAZO"
             return SUBMENU_CAF_LAZO, "CAF_LAZO", None, False
         elif msg_clean in TEXTOS_DIRECTOS_CAF:
-            res = TEXTOS_DIRECTOS_CAF[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return res, "INICIO", None, True
+            return TEXTOS_DIRECTOS_CAF[msg_clean], "INICIO", None, True
         elif msg_clean in MAPA_TITULOS_CAF:
             desc, archivo = obtener_item_caf_por_titulo_o_indice(msg_clean)
             USER_STATES[user_id] = "INICIO"
@@ -953,12 +926,10 @@ def procesar_flujo_menu(mensaje_user, user_id="default"):
         else:
             return f"Opción no válida.\n\n{MENU_CAF6000}", "MENU_CAF", None, False
 
-    # --- SUBMENÚ CAF LAZO ---
     if estado_actual == "CAF_LAZO":
         if msg_clean in TEXTOS_CAF_LAZO:
-            res = TEXTOS_CAF_LAZO[msg_clean]
             USER_STATES[user_id] = "INICIO"
-            return res, "INICIO", None, True
+            return TEXTOS_CAF_LAZO[msg_clean], "INICIO", None, True
         else:
             return f"Opción no válida.\n\n{SUBMENU_CAF_LAZO}", "CAF_LAZO", None, False
 
@@ -1010,10 +981,6 @@ def api_preguntar():
                 'respuesta_texto': None,
                 'nuevo_estado': 'INICIO'
             }), 200
-
-        es_novedad_o_libre = not pregunta.strip().isdigit() and pregunta.strip().lower() not in ["hola", "inicio", "menu", "reset", "0"]
-        if es_novedad_o_libre and es_respuesta_final:
-            respuesta_texto = pregunta
 
         host_url = request.host_url.rstrip('/')
         if host_url.startswith("http://"):
